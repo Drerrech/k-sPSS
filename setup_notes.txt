@@ -1,0 +1,5 @@
+CUTEst installation:
+
+installing on new macs: specify path to lib in zshrc
+export LIBRARY_PATH="$LIBRARY_PATH:/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib"
+
