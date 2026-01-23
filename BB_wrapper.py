@@ -1,3 +1,4 @@
+import pycutest
 import torch
 import time
 
@@ -31,14 +32,58 @@ class point_reuse:
             
             return points
 
-class BB_wrapper:
+
+class BB_cutest_collection:
+    def __init__(self, print_load_status=True, write_to_file="", cap_n_problems=10000):
+        self.problems = []
+        self.problem_functions = []
+        
+        if print_load_status:
+            print("loading problems...")
+        
+        # problem criteria
+        max_dim = 1000
+        raw_problem_selection = pycutest.find_problems(objective="sum of squares other", constraints="unconstrained") # the query for dim contrain simply doesn't work, so implemented manually
+        # load problems into self.problems and load the pytorch compativle functions into self.problem_functions
+        for i, p_name in enumerate(raw_problem_selection):
+            if len(self.problems) == cap_n_problems:
+                break
+            
+            if print_load_status and i%20 == 0:
+                print(f"{i}/{len(raw_problem_selection)}")
+            
+            try:
+                p = pycutest.import_problem(p_name)
+                if p.n > max_dim:
+                    continue
+                
+                self.problems.append(p)
+                self.problem_functions.append(lambda x, p=p: p.obj(x.numpy())) # default argument voodoo becuase python will look at the reference of p and not the actual value otherwise
+            except Exception as e:
+                if print_load_status:
+                    print(f"{p_name} caused an exception while loading: {e}")
+                continue
+
+        if print_load_status:
+            print(f"loaded {len(self.problems)} problems")
+        
+        # optional: save the loaded problems to a txt file
+        if write_to_file != "":
+            with open(write_to_file, "w") as f:
+                f.write("id      | name           | n      | m      | n_fixed| n_free | vartype\n")
+                for i, p in enumerate(self.problems):
+                    f.write(f"{i:8}|{p.name:16}|{p.n:8}|{p.m:8}|{p.n_fixed:8}|{p.n_free:8}|{' '.join([str(i) for i in p.vartype])}\n")
+    
+
+
+class BB_k_fail_wrapper:
     def __init__(self, f, pattern, time_based=False, random_seed=42): # set random seed to None to disable reproducibility
         self.batch_calls = 0
         self.function_raw_calls = 0 # NOTE: different from point_reuse evals, this counts every time a function is called
         self.function_raw_succesfull_calls = 0
 
         self.f = f
-        self.pattern = pattern # 2xn tensor (n - max number of batch calls if iteration based OR number of time slots if time based)
+        self.pattern = pattern # nx2 tensor (n - max number of batch calls if iteration based OR number of time slots if time based)
         self.time_based = time_based
         self.current_pattern_idx = 0
 
@@ -63,15 +108,15 @@ class BB_wrapper:
                 while self.pattern[self.current_pattern_idx + 1, 0] <= time.time - self.start_time:
                     self.current_pattern_idx += 1
             else: # batch_calls based
-                self.current_pattern_idx = min(self.batch_call, self.pattern.shape[0]-1)
+                self.current_pattern_idx = min(self.batch_calls, self.pattern.shape[0]-1)
         
         if overwrite_k == -1:
-            k = self.current_pattern_idx[self.current_pattern_idx][1]
+            k = self.pattern[self.current_pattern_idx][1]
         else:
             k = overwrite_k
         
         # get binary tensor for failure
-        completed = torch.randperm(torch.arange(0, p-1, p, dtype=torch.int16))[:p-k] # mask of indexes of p-k elements
+        completed = torch.randperm(p, dtype=torch.int)[:p-k] # mask of indexes of p-k elements
 
         # evaluate
         f_vals = torch.zeros(p-k)
