@@ -1,6 +1,7 @@
 import BB_wrapper
 
 import torch
+import math
 
 class constant_prediction_software():
     def __init__(self, k_pred):
@@ -12,8 +13,25 @@ class constant_prediction_software():
     def add_actual_k(self):
         pass
 
-def select_k_spss(predicted_k_fail, D, delta, delta_mesh):
-    pass
+
+def get_k_spss_2d_frame(k, delta_mesh=1, num_steps=1): # NOTE: for now, num_steps will not be used
+    num_points = 2+1 + 2*k
+
+    frame_expansion = (torch.ones(num_points, num_steps) * torch.arange(1, num_steps+1)).T
+    theta = torch.linspace(0, 2*torch.pi, num_points+1)[:-1]
+
+    F = delta_mesh * torch.stack([(frame_expansion * torch.cos(theta)).reshape(-1), (frame_expansion * torch.sin(theta)).reshape(-1)], dim=1)
+    
+
+def select_k_spss(predicted_k_fail, num_dim, delta, delta_mesh):
+    # NOTE: for now, we will only support 2D and 3D problems
+    # NOTE: for now, P will always be just D used to build the frame, so frame is not really used here
+    
+    if num_dim == 2:
+        P = delta * get_k_spss_2d_frame(predicted_k_fail)
+        return P
+    else:
+        return None # will raise exception
 
 class MADS_k_fail:
     def __init__(self, x, bb_k_fail_wrapper, delta, tao, D, select_k_spss, prediction_software, log_file_path): # f_omega will not be used as no problems in the test set have contraints
