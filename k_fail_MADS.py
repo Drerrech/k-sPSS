@@ -10,7 +10,7 @@ class constant_prediction_software():
     def predict_k(self):
         return self.k_pred
     
-    def add_actual_k(self):
+    def add_actual_k(self, k):
         pass
 
 
@@ -21,6 +21,8 @@ def get_k_spss_2d_frame(k, delta_mesh=1, num_steps=1): # NOTE: for now, num_step
     theta = torch.linspace(0, 2*torch.pi, num_points+1)[:-1]
 
     F = delta_mesh * torch.stack([(frame_expansion * torch.cos(theta)).reshape(-1), (frame_expansion * torch.sin(theta)).reshape(-1)], dim=1)
+
+    return F
     
 
 def select_k_spss(predicted_k_fail, num_dim, delta, delta_mesh):
@@ -48,7 +50,7 @@ class MADS_k_fail:
         self.log_file_path = log_file_path # path to .txt where info should be stored
         open(log_file_path, "w").close() # clear log file
         with open(self.log_file_path, "a") as _f: # add columns
-            _f.write("k       | x" + 78*" " + "| f(x)           | delta          | delta_mesh     | n_function_calls | message")
+            _f.write("k       | x" + 78*" " + "| f(x)           | delta          | delta_mesh     | n_function_calls | message\n")
             # k:8, x:80, f(x):16, delta:16, delta_m:16, f_calls:18
         
         self.k = 0
@@ -57,7 +59,7 @@ class MADS_k_fail:
         self.cur_f_val = self.bb_k_fail_wrapper.p_reuse.evaluate(self.x) # using hashing (or not at step 0) get the current value of f
     
     def log_current(self, message=""): # log information about the current state
-        s = f"{self.k:8}|{str([round(i, 16) for i in self.x.tolist()]):80}|{self.cur_f_val:16.4f}|{self.delta:16.8}|{self.delta_mesh:16.8}|{self.n_function_calls:18}| {message}"
+        s = f"{self.k:8}|{str([round(i, 16) for i in self.x.tolist()]):80}|{self.cur_f_val:16.4f}|{self.delta:16.8f}|{self.delta_mesh:16.8f}|{self.n_function_calls:18}| {message}"
         with open(self.log_file_path, "a") as _f:
             _f.write(s + "\n")
     
@@ -70,8 +72,8 @@ class MADS_k_fail:
 
         # 3 - poll
         k_fail_predicted = self.prediction_software.predict_k() # predict k
-
-        P = select_k_spss(k_fail_predicted, self.D, self.delta, self.delta_mesh) # tensor of points to eval
+        
+        P = select_k_spss(k_fail_predicted, self.x.shape[0], self.delta, self.delta_mesh) # tensor of points to eval
         f_vals, completed = self.bb_k_fail_wrapper.batch_call(P)
         actual_k = completed.shape[0]
 
