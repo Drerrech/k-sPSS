@@ -34,7 +34,7 @@ class point_reuse:
 
 
 class BB_cutest_collection:
-    def __init__(self, print_load_status=True, write_to_file="", cap_n_problems=10000):
+    def __init__(self, print_load_status=True, write_to_file="", cap_n_problems=10000, max_dim = 1000):
         self.problems = []
         self.problem_functions = []
         
@@ -42,9 +42,9 @@ class BB_cutest_collection:
             print("loading problems...")
         
         # problem criteria
-        max_dim = 1000
         raw_problem_selection = pycutest.find_problems(objective="sum of squares other", constraints="unconstrained") # the query for dim contrain simply doesn't work, so implemented manually
         # load problems into self.problems and load the pytorch compativle functions into self.problem_functions
+        timings = []
         for i, p_name in enumerate(raw_problem_selection):
             if len(self.problems) == cap_n_problems:
                 break
@@ -53,12 +53,16 @@ class BB_cutest_collection:
                 print(f"{i}/{len(raw_problem_selection)}")
             
             try:
+                time_start = time.time()
                 p = pycutest.import_problem(p_name)
                 if p.n > max_dim:
+                    print(f"skipping {p_name}, dimension too high")
                     continue
                 
                 self.problems.append(p)
                 self.problem_functions.append(lambda x, p=p: p.obj(x.numpy())) # default argument voodoo becuase python will look at the reference of p and not the actual value otherwise
+
+                timings.append(time.time() - time_start)
             except Exception as e:
                 if print_load_status:
                     print(f"{p_name} caused an exception while loading: {e}")
@@ -70,9 +74,9 @@ class BB_cutest_collection:
         # optional: save the loaded problems to a txt file
         if write_to_file != "":
             with open(write_to_file, "w") as f:
-                f.write("id      | name           | n      | m      | n_fixed| n_free | vartype\n")
+                f.write("id      | name           | load time (s)  | n      | m      | n_fixed| n_free | vartype\n")
                 for i, p in enumerate(self.problems):
-                    f.write(f"{i:8}|{p.name:16}|{p.n:8}|{p.m:8}|{p.n_fixed:8}|{p.n_free:8}|{' '.join([str(i) for i in p.vartype])}\n")
+                    f.write(f"{i:8}|{p.name:16}|{timings[i]:12.4}|{p.n:8}|{p.m:8}|{p.n_fixed:8}|{p.n_free:8}|{' '.join([str(i) for i in p.vartype])}\n")
     
 
 
@@ -121,7 +125,7 @@ class BB_k_fail_wrapper:
         # evaluate
         f_vals = torch.zeros(p-k)
         for i, point in enumerate(points[completed]):
-            f_vals[i] = self.p_reuse.evaluate(point)
+            f_vals[i] = min(1e20, max(-1e20, self.p_reuse.evaluate(point)))
         
         return (f_vals, completed)
 
