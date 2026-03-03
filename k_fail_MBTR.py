@@ -24,12 +24,13 @@ def get_random_rotation_matrix(n):
     return m
 
 
-class GPS_k_fail:
-    def __init__(self, x, bb_k_fail_wrapper, delta, tao, prediction_software, log_file_path): # f_omega will not be used as no problems in the test set have contraints
+class MBTR_k_fail:
+    def __init__(self, x, bb_k_fail_wrapper, delta, tao, select_k_spss, prediction_software, log_file_path): # f_omega will not be used as no problems in the test set have contraints
         self.x = x
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.delta = delta
         self.tao = tao
+        self.select_k_spss = select_k_spss
         self.prediction_software = prediction_software
 
         self.log_file_path = log_file_path # path to .txt where info should be stored
