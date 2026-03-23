@@ -40,8 +40,13 @@ def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered
 
 
 def get_quad_model_and_solution(points, func_values, delta): # assuming the first points is x_k, model will be cetnered at x_k
-    # print("points raw:", points)
-    # print("func_vals raw:", func_values)
+    # NOTE: will break if number of points is > (n+1)(n+2)/2 -> to handle disregard
+    n = points.shape[1]
+    max_num_points = (n+1)*(n+2)//2
+    # trim
+    points = points[:max_num_points]
+    func_values = func_values[:max_num_points]
+
     x_k = points[0]
     # convert to numpy
     points = points.numpy()
