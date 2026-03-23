@@ -59,8 +59,8 @@ class MBTR_k_fail:
         if points.shape[0] > self.n: # capable of a poor quad model (n+1 - linear, (n+1)(n+2)/2 - quad)
             selected_order = 2
 
-        # update counters NOTE: not all of them are update here (self.n_1_batch_calls)
         self.prediction_software.add_actual_k(actual_k)
+        # update counters NOTE: not all of them are update here (self.n_1_batch_calls)
         self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
         self.n_failed_function_calls += actual_k
         self.n_batch_calls += 1

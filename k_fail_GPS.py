@@ -33,16 +33,20 @@ class GPS_k_fail:
         self.log_file_path = log_file_path # path to .txt where info should be stored
         open(log_file_path, "w").close() # clear log file
         with open(self.log_file_path, "a") as _f: # add columns
-            _f.write("k       | x" + 78*" " + "| f(x)               | delta          | n_function_calls | message\n")
+            _f.write("k       | x" + 78*" " + "| f(x)               | delta          | n_function_calls, n_failed_function_calls, n_1_batch_calls, n_batch_calls | message\n")
             # k:8, x:80, f(x):16, delta:16, delta_m:16, f_calls:18
         
+        # counters
         self.k = 0
         self.n_function_calls = 0
+        self.n_failed_function_calls = 0
+        self.n_1_batch_calls = 0
+        self.n_batch_calls = 0
 
         self.cur_f_val = self.bb_k_fail_wrapper.p_reuse.evaluate(self.x) # using hashing (or not at step 0) get the current value of f
     
     def log_current(self, message=""): # log information about the current state
-        s = f"{self.k:8}|{str([round(i, 16) for i in self.x.tolist()]):80}|{self.cur_f_val:20.16f}|{self.delta:16.8f}|{self.n_function_calls:18}| {message}"
+        s = f"{self.k:8}|{str([round(i, 16) for i in self.x.tolist()]):80}|{self.cur_f_val:20.16f}|{self.delta:16.8f}|{str([self.n_function_calls, self.n_failed_function_calls, self.n_1_batch_calls, self.n_batch_calls]):75}| {message}"
         with open(self.log_file_path, "a") as _f:
             _f.write(s + "\n")
     
@@ -60,7 +64,11 @@ class GPS_k_fail:
 
         # update k_fail and number of f evals
         self.prediction_software.add_actual_k(actual_k)
+        # update counters NOTE: not all of them are update here (self.n_1_batch_calls)
         self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
+        self.n_failed_function_calls += actual_k
+        self.n_batch_calls += 1
+
         # given that the points are evaluated in batches, using oppotrunistic or ordered polling will not make any sense, only complete, which does raise some questions...
         # complete polling
         min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
