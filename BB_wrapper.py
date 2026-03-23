@@ -76,7 +76,7 @@ class BB_cutest_collection:
             with open(write_to_file, "w") as f:
                 f.write("id      | name           | load time (s)  | n      | m      | n_fixed| n_free | vartype\n")
                 for i, p in enumerate(self.problems):
-                    f.write(f"{i:8}|{p.name:16}|{timings[i]:12.4}|{p.n:8}|{p.m:8}|{p.n_fixed:8}|{p.n_free:8}|{' '.join([str(i) for i in p.vartype])}\n")
+                    f.write(f"{i:8}|{p.name:16}|{timings[i]:16.4}|{p.n:8}|{p.m:8}|{p.n_fixed:8}|{p.n_free:8}|{' '.join([str(i) for i in p.vartype])}\n")
     
 
 
