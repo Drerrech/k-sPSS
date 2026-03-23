@@ -1,6 +1,7 @@
 import pycutest
 import torch
 import time
+import math
 
 class point_reuse:
         def __init__(self, f):
@@ -81,15 +82,16 @@ class BB_cutest_collection:
 
 
 class BB_k_fail_wrapper:
-    def __init__(self, f, pattern, time_based=False, random_seed=42): # set random seed to None to disable reproducibility
+    def __init__(self, f, pattern, num_cpus, time_based=False, random_seed=42): # set random seed to None to disable reproducibility
+        self.f = f
+        self.pattern = pattern # nx2 tensor (n - max number of batch calls if iteration based OR number of time slots if time based)
+        self.num_cpus = num_cpus # used for calculating num_batch_calls on batch_call
+        self.time_based = time_based
+        self.current_pattern_idx = 0
+
         self.batch_calls = 0
         self.function_raw_calls = 0 # NOTE: different from point_reuse evals, this counts every time a function is called
         self.function_raw_succesfull_calls = 0
-
-        self.f = f
-        self.pattern = pattern # nx2 tensor (n - max number of batch calls if iteration based OR number of time slots if time based)
-        self.time_based = time_based
-        self.current_pattern_idx = 0
 
         self.start_time = -1 # time will be set on first batch_call and then used for pattern
 
@@ -127,5 +129,8 @@ class BB_k_fail_wrapper:
         for i, point in enumerate(points[completed]):
             f_vals[i] = min(1e20, max(-1e20, self.p_reuse.evaluate(point)))
         
-        return (f_vals, completed)
+        # calculate, actual_batch_calls, how many it would take in a cluster
+        actual_batch_calls = math.ceil(p / self.num_cpus)
+
+        return (f_vals, completed, actual_batch_calls)
 

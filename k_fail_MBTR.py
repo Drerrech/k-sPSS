@@ -51,7 +51,7 @@ class MBTR_k_fail:
         points = torch.cat((self.x.unsqueeze(0), self.x + self.delta*models.get_random_unit_D(p+0, self.n))) # TODO: account for k (see issue above) TODO: go for best model or decide the quality afterwards?
 
         # 1.2 get function value at points
-        f_vals, completed = self.bb_k_fail_wrapper.batch_call(points)
+        f_vals, completed, actual_batch_calls = self.bb_k_fail_wrapper.batch_call(points)
         actual_k = points.shape[0] - completed.shape[0]
         points = points[completed] # NOTE: important step
 
@@ -63,7 +63,7 @@ class MBTR_k_fail:
         # update counters NOTE: not all of them are update here (self.n_1_batch_calls)
         self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
         self.n_failed_function_calls += actual_k
-        self.n_batch_calls += 1
+        self.n_batch_calls += actual_batch_calls
 
         # 1.3 build model
         x_hat, f_tilda_x_hat, g_tilda, f_tilda = None, None, None, None

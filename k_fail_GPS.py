@@ -59,7 +59,7 @@ class GPS_k_fail:
         if random_rotate:
             P = (get_random_rotation_matrix(self.x.shape[0]) @ P.T).T
 
-        f_vals, completed = self.bb_k_fail_wrapper.batch_call(P)
+        f_vals, completed, actual_batch_calls = self.bb_k_fail_wrapper.batch_call(P)
         actual_k = completed.shape[0]
 
         # update k_fail and number of f evals
@@ -67,7 +67,7 @@ class GPS_k_fail:
         # update counters NOTE: not all of them are update here (self.n_1_batch_calls)
         self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
         self.n_failed_function_calls += actual_k
-        self.n_batch_calls += 1
+        self.n_batch_calls += actual_batch_calls
 
         # given that the points are evaluated in batches, using oppotrunistic or ordered polling will not make any sense, only complete, which does raise some questions...
         # complete polling
