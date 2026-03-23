@@ -3,7 +3,7 @@ import models
 import torch
 
 class MBTR_k_fail:
-    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path): # f_omega will not be used as no problems in the test set have contraints
+    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2): # f_omega will not be used as no problems in the test set have contraints
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.x = x
         self.cur_f_val = self.bb_k_fail_wrapper.p_reuse.evaluate(self.x) # using hashing (or not at step 0) get the current value of f
@@ -13,6 +13,7 @@ class MBTR_k_fail:
         self.gamma = gamma
         self.eps_stop = eps_stop
         self.prediction_software = prediction_software
+        self.preferred_model_order = preferred_model_order
 
         self.n = x.shape[0]
 
@@ -42,10 +43,12 @@ class MBTR_k_fail:
         # for a linear only (n+1)
         
         # 1.1 - build points to build the model
-        # NOTE: to keep it fair, we will use n + 2k + 1 points
+        
         k_fail_predicted = self.prediction_software.predict_k() # predict k
-        p = self.n + 2*k_fail_predicted # p+1 points
-        # TODO: this decision seems very questionable
+        if self.preferred_model_order == 1:
+            p = self.n+1 + k_fail_predicted # linear model +k failed points TODO: as discussed with Clement this can fail
+        else:
+            p = (self.n+1)*(self.n+2)//2 + k_fail_predicted # TODO: as discussed with Clement this can fail
         
 
         points = torch.cat((self.x.unsqueeze(0), self.x + self.delta*models.get_random_unit_D(p+0, self.n))) # TODO: account for k (see issue above) TODO: go for best model or decide the quality afterwards?
