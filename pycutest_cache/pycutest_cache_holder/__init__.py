@@ -1,1 +1,0 @@
-#PyCUTEst cache initialization file
