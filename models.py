@@ -44,8 +44,12 @@ def get_quad_model_and_solution(points, func_values, delta): # assuming the firs
     n = points.shape[1]
     max_num_points = (n+1)*(n+2)//2
     # trim
+    print("GOT:", points)
     points = points[:max_num_points]
     func_values = func_values[:max_num_points]
+
+    print("TRIMMED:", points)
+    print("trimmed func_values", func_values)
 
     x_k = points[0]
     # convert to numpy
@@ -55,7 +59,11 @@ def get_quad_model_and_solution(points, func_values, delta): # assuming the firs
     func_values = func_values.numpy()
 
     # step 1 - build a quadratic model using minimum Frobenius norm of the Hessian
+    print("RELATIVE POINTS", rel_points)
+    
     c, g, H = get_quad_params(rel_points, func_values)
+    
+    print("HESSIAN", H)
     # Force H to be PSD - TODO: whatever that means
     eigvals = np.linalg.eigvalsh(H)
     if eigvals.min() < 0:
@@ -114,6 +122,6 @@ def get_lin_model_and_solution(points, func_values, delta):
 
 
 def get_random_unit_D(p, n): # p - number of points, returns p randomly directed unit vectors
-    vectors = torch.rand(p, n)
+    vectors = (torch.rand(p, n)-0.5)*2
     vectors /= torch.sqrt(torch.pow(vectors, 2).sum(1)).view((-1, 1))
     return vectors

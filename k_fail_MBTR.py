@@ -45,18 +45,22 @@ class MBTR_k_fail:
         # 1.1 - build points to build the model
         
         k_fail_predicted = self.prediction_software.predict_k() # predict k
-        if self.preferred_model_order == 1:
-            p = self.n+1 + k_fail_predicted # linear model +k failed points TODO: as discussed with Clement this can fail
+        if self.preferred_model_order == 1: # NOTE p+1 points, not p!
+            p = self.n + k_fail_predicted # linear model +k failed points TODO: as discussed with Clement this can fail
         else:
-            p = (self.n+1)*(self.n+2)//2 + k_fail_predicted # TODO: as discussed with Clement this can fail
-        
-
-        points = torch.cat((self.x.unsqueeze(0), self.x + self.delta*models.get_random_unit_D(p+0, self.n))) # TODO: account for k (see issue above) TODO: go for best model or decide the quality afterwards?
-
+            p = (self.n+1)*(self.n+2)//2 + k_fail_predicted - 1 # TODO: as discussed with Clement this can fail
+        # TODO: test for oversupply
+        print("P:", p)
+        points = self.x + self.delta*models.get_random_unit_D(p+0, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
         # 1.2 get function value at points
         f_vals, completed, actual_batch_calls = self.bb_k_fail_wrapper.batch_call(points)
         actual_k = points.shape[0] - completed.shape[0]
         points = points[completed] # NOTE: important step
+        points = torch.cat((self.x.unsqueeze(0), self.x + self.delta*models.get_random_unit_D(p+0, self.n))) # add x_k back in
+        f_vals = torch.cat((torch.tensor(self.cur_f_val).unsqueeze(0), f_vals)) # add f(x_k)
+        print("f(x_k)", self.cur_f_val)
+        print("POINTS:", points)
+        print("func vals", f_vals)
 
         selected_order = 1
         if points.shape[0] > self.n: # capable of a poor quad model (n+1 - linear, (n+1)(n+2)/2 - quad)
