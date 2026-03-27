@@ -4,40 +4,59 @@ import torch
 from scipy.optimize import minimize, brentq
 
 def get_quad_params(points, func_values):
-    n = points.shape[1]
+    # n = points.shape[1]
 
+    # c = cp.Variable(1)
+    # g = cp.Variable(n)
+    # H = cp.Variable((n, n), symmetric=True)
+
+    # objective = cp.Minimize(cp.sum_squares(H)) # ||H||F ^ 2
+    
+    # # f(xi) = m(xi) = c + gTx + 1/2 xT H x
+    # constraints = [f_xi == c + g @ xi + 0.5 * (xi @ H @ xi) for xi, f_xi in zip(points, func_values)] # CVXPY should handle @...
+
+    # prob = cp.Problem(objective, constraints)
+    # prob.solve()
+    # print("status:", prob.status)
+    # # print("H:", H.value)
+    # # print("points centered:", points)  # need >= 6 for n=2
+    # # print("func_vals:", func_values)
+    # return (c.value, g.value, H.value)
+
+
+
+    n = points.shape[1]
     c = cp.Variable(1)
     g = cp.Variable(n)
     H = cp.Variable((n, n), symmetric=True)
-
-    objective = cp.Minimize(cp.sum_squares(H)) # ||H||F ^ 2
     
-    # f(xi) = m(xi) = c + gTx + 1/2 xT H x
-    constraints = [f_xi == c + g @ xi + 0.5 * cp.quad_form(xi, H) for xi, f_xi in zip(points, func_values)] # CVXPY should handle @...
-
-    prob = cp.Problem(objective, constraints)
+    residuals = [f_xi - (c + g @ xi + 0.5 * (xi @ H @ xi)) 
+                 for xi, f_xi in zip(points, func_values)]
+    
+    objective = cp.Minimize(
+        cp.sum_squares(cp.hstack(residuals)) +  # fit the points
+        1e-6 * cp.sum_squares(H)                # minimum ||H||_F
+    )
+    
+    prob = cp.Problem(objective)
     prob.solve()
-    print("status:", prob.status)
-    # print("H:", H.value)
-    # print("points centered:", points)  # need >= 6 for n=2
-    # print("func_vals:", func_values)
-    return (c.value, g.value, H.value)
+    return c.value, g.value, H.value
 
 
 def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered at 0
     n = g.shape[0]
 
-    x = cp.Variable(n)
+    # x = cp.Variable(n)
 
-    objective = cp.Minimize(c + g @ x + 0.5 * cp.quad_form(x, H))
+    # objective = cp.Minimize(c + g @ x + 0.5 * cp.quad_form(x, H)) quad form is bad?
 
-    constraints = [cp.sum(x**2) <= delta**2]
+    # constraints = [cp.sum(x**2) <= delta**2]
 
-    prob = cp.Problem(objective, constraints)
-    f_tilda_x_hat = prob.solve()
-    x_hat = x.value
+    # prob = cp.Problem(objective, constraints)
+    # f_tilda_x_hat = prob.solve()
+    # x_hat = x.value
 
-    return torch.from_numpy(x_hat), f_tilda_x_hat
+    # return torch.from_numpy(x_hat), f_tilda_x_hat
 
 
     # optim_result = minimize(fun=lambda x: c + g @ x + 0.5 * x @ H @ x, x0=np.zeros(n), jac=lambda x: g + H @ x, hess=lambda x: H, method='trust-exact', options={'initial_trust_radius': 0.5 * delta, 'max_trust_radius': delta})
@@ -46,25 +65,26 @@ def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered
     
     # return torch.from_numpy(optim_result.x), optim_result.fun
 
-    # def x_of_lam(lam):
-    #     return np.linalg.solve(H + lam * np.eye(n), -g)
+
+    def x_of_lam(lam):
+        return np.linalg.solve(H + lam * np.eye(n), -g)
     
-    # eigvals = np.linalg.eigvalsh(H)
-    # lam_min = max(0, -eigvals.min() + 1e-8)  # ensure H + lam*I is PD
+    eigvals = np.linalg.eigvalsh(H)
+    lam_min = max(0, -eigvals.min() + 1e-8)  # ensure H + lam*I is PD
     
-    # # check if unconstrained solution is inside ball
-    # try:
-    #     x_unc = x_of_lam(lam_min)
-    #     if np.linalg.norm(x_unc) <= delta:
-    #         return torch.from_numpy(x_unc), c + g @ x_unc + 0.5 * x_unc @ H @ x_unc
-    # except np.linalg.LinAlgError:
-    #     pass
+    # check if unconstrained solution is inside ball
+    try:
+        x_unc = x_of_lam(lam_min)
+        if np.linalg.norm(x_unc) <= delta:
+            return torch.from_numpy(x_unc), c + g @ x_unc + 0.5 * x_unc @ H @ x_unc
+    except np.linalg.LinAlgError:
+        pass
     
-    # # otherwise find lambda that places x on the boundary
-    # secular = lambda lam: np.linalg.norm(x_of_lam(lam)) - delta
-    # lam_star = brentq(secular, lam_min, lam_min + 1e6)
-    # x = x_of_lam(lam_star)
-    # return torch.from_numpy(x), c + g @ x + 0.5 * x @ H @ x
+    # otherwise find lambda that places x on the boundary
+    secular = lambda lam: np.linalg.norm(x_of_lam(lam)) - delta
+    lam_star = brentq(secular, lam_min, lam_min + 1e6)
+    x = x_of_lam(lam_star)
+    return torch.from_numpy(x), c + g @ x + 0.5 * x @ H @ x
 
 
 
@@ -87,8 +107,16 @@ def get_quad_model_and_solution(points, func_values, delta): # assuming the firs
     rel_points = points - points[0]
     func_values = func_values.numpy()
 
+    # TODO TESTING
+    func_values = func_values.astype(np.float64)
+
     # step 1 - build a quadratic model using minimum Frobenius norm of the Hessian
     print("RELATIVE POINTS", rel_points)
+    print("points dtype:", points.dtype)
+    print("func_values dtype:", func_values.dtype)
+    print("points type:", type(points))
+    print("func_values type:", type(func_values))
+    print("n:", n)
     
     c, g, H = get_quad_params(rel_points, func_values)
     
@@ -151,6 +179,10 @@ def get_lin_model_and_solution(points, func_values, delta):
 
 
 def get_random_unit_D(p, n): # p - number of points, returns p randomly directed unit vectors
-    vectors = (torch.rand(p, n)-0.5)*2
-    vectors /= torch.sqrt(torch.pow(vectors, 2).sum(1)).view((-1, 1))
+    vectors = (torch.rand(p, n) - 0.5) * 2  # uniform in [-1, 1]^n
+    norms = torch.sqrt((vectors ** 2).sum(1))
+    while (norms < 1e-8).any():
+        mask = norms < 1e-8
+        vectors[mask] = (torch.rand(mask.sum(), n) - 0.5) * 2
+        norms = torch.sqrt((vectors ** 2).sum(1))
     return vectors
