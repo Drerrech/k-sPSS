@@ -52,12 +52,19 @@ class MBTR_k_fail:
         # TODO: test for oversupply
         print("P:", p)
         points = self.x + self.delta*models.get_random_unit_D(p+0, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+
         # 1.2 get function value at points
         f_vals, completed, actual_batch_calls = self.bb_k_fail_wrapper.batch_call(points)
         actual_k = points.shape[0] - completed.shape[0]
+        print("raw points", points)
+        print("completed idx", completed)
+        print("x_k", self.x)
         points = points[completed] # NOTE: important step
-        points = torch.cat((self.x.unsqueeze(0), self.x + self.delta*models.get_random_unit_D(p+0, self.n))) # add x_k back in
+        
+        # points only consistend of random_D, so adding x_k as first element back in, also adding its' function
+        points = torch.cat((self.x.unsqueeze(0), points)) # add x_k back in now p+1 points
         f_vals = torch.cat((torch.tensor(self.cur_f_val).unsqueeze(0), f_vals)) # add f(x_k)
+        
         print("f(x_k)", self.cur_f_val)
         print("POINTS:", points)
         print("func vals", f_vals)
