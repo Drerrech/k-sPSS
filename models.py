@@ -1,6 +1,7 @@
 import cvxpy as cp
 import numpy as np
 import torch
+from scipy.optimize import minimize, brentq
 
 def get_quad_params(points, func_values):
     n = points.shape[1]
@@ -16,7 +17,7 @@ def get_quad_params(points, func_values):
 
     prob = cp.Problem(objective, constraints)
     prob.solve()
-    # print("status:", prob.status)
+    print("status:", prob.status)
     # print("H:", H.value)
     # print("points centered:", points)  # need >= 6 for n=2
     # print("func_vals:", func_values)
@@ -37,6 +38,34 @@ def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered
     x_hat = x.value
 
     return torch.from_numpy(x_hat), f_tilda_x_hat
+
+
+    # optim_result = minimize(fun=lambda x: c + g @ x + 0.5 * x @ H @ x, x0=np.zeros(n), jac=lambda x: g + H @ x, hess=lambda x: H, method='trust-exact', options={'initial_trust_radius': 0.5 * delta, 'max_trust_radius': delta})
+    # if not optim_result.success:
+    #     raise Exception(f"scipy trust-exact could not solve the MBTR subproblem: {optim_result.message}")
+    
+    # return torch.from_numpy(optim_result.x), optim_result.fun
+
+    # def x_of_lam(lam):
+    #     return np.linalg.solve(H + lam * np.eye(n), -g)
+    
+    # eigvals = np.linalg.eigvalsh(H)
+    # lam_min = max(0, -eigvals.min() + 1e-8)  # ensure H + lam*I is PD
+    
+    # # check if unconstrained solution is inside ball
+    # try:
+    #     x_unc = x_of_lam(lam_min)
+    #     if np.linalg.norm(x_unc) <= delta:
+    #         return torch.from_numpy(x_unc), c + g @ x_unc + 0.5 * x_unc @ H @ x_unc
+    # except np.linalg.LinAlgError:
+    #     pass
+    
+    # # otherwise find lambda that places x on the boundary
+    # secular = lambda lam: np.linalg.norm(x_of_lam(lam)) - delta
+    # lam_star = brentq(secular, lam_min, lam_min + 1e6)
+    # x = x_of_lam(lam_star)
+    # return torch.from_numpy(x), c + g @ x + 0.5 * x @ H @ x
+
 
 
 def get_quad_model_and_solution(points, func_values, delta): # assuming the first points is x_k, model will be cetnered at x_k
@@ -64,10 +93,10 @@ def get_quad_model_and_solution(points, func_values, delta): # assuming the firs
     c, g, H = get_quad_params(rel_points, func_values)
     
     print("HESSIAN", H)
-    # Force H to be PSD - TODO: whatever that means
-    eigvals = np.linalg.eigvalsh(H)
-    if eigvals.min() < 0:
-        H = H - eigvals.min() * np.eye(H.shape[0])
+    # # Force H to be PSD - ensures that the problem is convex but isn't that bs... it is, so i'll switch to scipy for solving the trust region
+    # eigvals = np.linalg.eigvalsh(H)
+    # if eigvals.min() < 0:
+    #     H = H - eigvals.min() * np.eye(H.shape[0])
 
     c_t = torch.from_numpy(c)
     g_t = torch.from_numpy(g)

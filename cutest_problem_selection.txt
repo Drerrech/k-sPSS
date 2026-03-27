@@ -1,2 +1,2 @@
 id      | name           | load time (s)  | n      | m      | n_fixed| n_free | vartype
-       0|SISSER          |        0.003354|       2|       0|       0|       2|0 0
+       0|SISSER          |        0.003336|       2|       0|       0|       2|0 0
