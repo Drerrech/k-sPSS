@@ -80,5 +80,7 @@ class GPS_k_fail:
             self.delta = self.delta * self.tao
         
         # update params
+        message += " | actual_k=" + str(actual_k)
         self.k += 1
+        self.log_current(message=message)
         
