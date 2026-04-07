@@ -43,9 +43,38 @@ def get_quad_params(points, func_values):
     return c.value, g.value, H.value
 
 
-def get_quad_params_simplex_hessian(points, func_values):
+def get_quad_params_simplex_hessian(rel_points, func_values):
+    # will be doing the case where S = Ti for all i {1, m} (m is the number of dimensions)
+    # note that we are doing relative points, so points[0] = x0 = 0, other points are the offsets
+    # points are (p+1) x m where m is the num of dimensions
 
-    return c.value, g.value, H.value
+
+    # construct the simplex gradient (Ti)
+    def simplex_grad(x0_i):
+        other_points = np.delete(rel_points, x0_i, axis=0)
+        S_t = other_points - rel_points[x0_i]
+
+        other_values = np.delete(func_values, x0_i)
+        delta_s = other_values - func_values[x0_i]
+
+        S_t_pinv = np.linalg.pinv(S_t)
+        g = S_t_pinv @ delta_s
+        return g
+    
+    g_base = simplex_grad(0)
+
+
+    # construct the GSH
+    # will iterate over all points except x0
+    delta2_s = np.array([simplex_grad(i) - g_base for i in range(1, rel_points.shape[0])])
+
+    S_t = rel_points[1:] - rel_points[0] # x0 is the first rel_point
+    S_t_pseudo_inv = np.linalg.pinv(S_t)
+    H = S_t_pseudo_inv @ delta2_s
+
+    c = np.array(func_values[0]) # as the 0-th point x0 is relative and 0
+
+    return c, g_base, H
 
 
 def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered at 0
@@ -86,7 +115,7 @@ def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered
         if np.linalg.norm(x_unc) <= delta:
             return torch.from_numpy(x_unc), c + g @ x_unc + 0.5 * x_unc @ H @ x_unc
     except np.linalg.LinAlgError:
-        pass
+        print("WARNING: solving unconstrained solution failed in MBTR (models)")
     
     # otherwise find lambda that places x on the boundary
     secular = lambda lam: np.linalg.norm(x_of_lam(lam)) - delta
@@ -102,12 +131,12 @@ def get_quad_model_and_solution(raw_points, raw_func_values, raw_delta): # assum
         n = raw_points.shape[1]
         max_num_points = (n+1)*(n+2)//2
         # trim
-        print("GOT:", raw_points)
+        # print("GOT:", raw_points)
         points = raw_points[:max_num_points]
         func_values = raw_func_values[:max_num_points]
 
-        print("TRIMMED:", points)
-        print("trimmed func_values", func_values)
+        # print("TRIMMED:", points)
+        # print("trimmed func_values", func_values)
 
         x_k = points[0]
         # convert to numpy
@@ -120,16 +149,17 @@ def get_quad_model_and_solution(raw_points, raw_func_values, raw_delta): # assum
         func_values = func_values.astype(np.float64)
 
         # step 1 - build a quadratic model using minimum Frobenius norm of the Hessian
-        print("RELATIVE POINTS", rel_points)
-        print("points dtype:", points.dtype)
-        print("func_values dtype:", func_values.dtype)
-        print("points type:", type(points))
-        print("func_values type:", type(func_values))
-        print("n:", n)
+        # print("RELATIVE POINTS", rel_points)
+        # print("points dtype:", points.dtype)
+        # print("func_values dtype:", func_values.dtype)
+        # print("points type:", type(points))
+        # print("func_values type:", type(func_values))
+        # print("n:", n)
     
-        c, g, H = get_quad_params(rel_points, func_values)
+        # c, g, H = get_quad_params(rel_points, func_values)
+        c, g, H = get_quad_params_simplex_hessian(rel_points, func_values)
 
-        print("HESSIAN", H)
+        # print("HESSIAN", H)
         # # Force H to be PSD - ensures that the problem is convex but isn't that bs... it is, so i'll switch to scipy for solving the trust region
         # eigvals = np.linalg.eigvalsh(H)
         # if eigvals.min() < 0:
@@ -150,7 +180,7 @@ def get_quad_model_and_solution(raw_points, raw_func_values, raw_delta): # assum
         return x_hat, f_tilda_x_hat, g_t, f_tilda
     except Exception as e: # for some reason, either building or solving the model failed, just do linear
         print(f"WARNING: failed to build quad model for MBTR, doing linear: {e}")
-        print(raw_points)
+        # print(raw_points)
         return get_lin_model_and_solution(raw_points, raw_func_values, raw_delta)
 
 
@@ -160,8 +190,8 @@ def get_lin_model_and_solution(points, func_values, delta):
     x_k = points[0]
     # p+1 points given
     p = points.shape[0] - 1
-    print(points)
-    print(func_values)
+    # print(points)
+    # print(func_values)
     # print("p " + str(p))
 
     rel_points = points - points[0]
@@ -178,8 +208,8 @@ def get_lin_model_and_solution(points, func_values, delta):
     
     # calculate grad and build linear model (already in torch)
     # print(D_t_pinv, delta_f)
-    print("D_t_pinv:", D_t_pinv)
-    print("delta_f", delta_f)
+    # print("D_t_pinv:", D_t_pinv)
+    # print("delta_f", delta_f)
     g = D_t_pinv @ delta_f
     c = func_values[0] - g@rel_points[0] # c + gxi = fi, so for x0: c = f0 - gx0
 
