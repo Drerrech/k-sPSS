@@ -43,6 +43,11 @@ def get_quad_params(points, func_values):
     return c.value, g.value, H.value
 
 
+def get_quad_params_simplex_hessian(points, func_values):
+
+    return c.value, g.value, H.value
+
+
 def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered at 0
     n = g.shape[0]
 
@@ -60,6 +65,9 @@ def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered
 
 
     # optim_result = minimize(fun=lambda x: c + g @ x + 0.5 * x @ H @ x, x0=np.zeros(n), jac=lambda x: g + H @ x, hess=lambda x: H, method='trust-exact', options={'initial_trust_radius': 0.5 * delta, 'max_trust_radius': delta})
+    
+    # print(torch.from_numpy(optim_result.x), optim_result.fun)
+    
     # if not optim_result.success:
     #     raise Exception(f"scipy trust-exact could not solve the MBTR subproblem: {optim_result.message}")
     
@@ -88,57 +96,63 @@ def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered
 
 
 
-def get_quad_model_and_solution(points, func_values, delta): # assuming the first points is x_k, model will be cetnered at x_k
-    # NOTE: will break if number of points is > (n+1)(n+2)/2 -> to handle disregard
-    n = points.shape[1]
-    max_num_points = (n+1)*(n+2)//2
-    # trim
-    print("GOT:", points)
-    points = points[:max_num_points]
-    func_values = func_values[:max_num_points]
+def get_quad_model_and_solution(raw_points, raw_func_values, raw_delta): # assuming the first points is x_k, model will be cetnered at x_k
+    try:
+        # NOTE: will break if number of points is > (n+1)(n+2)/2 -> to handle disregard
+        n = raw_points.shape[1]
+        max_num_points = (n+1)*(n+2)//2
+        # trim
+        print("GOT:", raw_points)
+        points = raw_points[:max_num_points]
+        func_values = raw_func_values[:max_num_points]
 
-    print("TRIMMED:", points)
-    print("trimmed func_values", func_values)
+        print("TRIMMED:", points)
+        print("trimmed func_values", func_values)
 
-    x_k = points[0]
-    # convert to numpy
-    points = points.numpy()
-    # center points at x_k
-    rel_points = points - points[0]
-    func_values = func_values.numpy()
+        x_k = points[0]
+        # convert to numpy
+        points = points.numpy()
+        # center points at x_k
+        rel_points = points - points[0]
+        func_values = func_values.numpy()
 
-    # TODO TESTING
-    func_values = func_values.astype(np.float64)
+        # TODO TESTING
+        func_values = func_values.astype(np.float64)
 
-    # step 1 - build a quadratic model using minimum Frobenius norm of the Hessian
-    print("RELATIVE POINTS", rel_points)
-    print("points dtype:", points.dtype)
-    print("func_values dtype:", func_values.dtype)
-    print("points type:", type(points))
-    print("func_values type:", type(func_values))
-    print("n:", n)
+        # step 1 - build a quadratic model using minimum Frobenius norm of the Hessian
+        print("RELATIVE POINTS", rel_points)
+        print("points dtype:", points.dtype)
+        print("func_values dtype:", func_values.dtype)
+        print("points type:", type(points))
+        print("func_values type:", type(func_values))
+        print("n:", n)
     
-    c, g, H = get_quad_params(rel_points, func_values)
-    
-    print("HESSIAN", H)
-    # # Force H to be PSD - ensures that the problem is convex but isn't that bs... it is, so i'll switch to scipy for solving the trust region
-    # eigvals = np.linalg.eigvalsh(H)
-    # if eigvals.min() < 0:
-    #     H = H - eigvals.min() * np.eye(H.shape[0])
+        c, g, H = get_quad_params(rel_points, func_values)
 
-    c_t = torch.from_numpy(c)
-    g_t = torch.from_numpy(g)
-    H_t = torch.from_numpy(H)
-#will this function f tilda still work even when we switched to relative points????
-    def f_tilda(x): # NOTE: the model was built assuming p0 is 0 (centered at x_k)
-        x_rel = x - x_k
-        return c_t + g_t @ x_rel + 0.5 * x_rel @ H_t @ x_rel
+        print("HESSIAN", H)
+        # # Force H to be PSD - ensures that the problem is convex but isn't that bs... it is, so i'll switch to scipy for solving the trust region
+        # eigvals = np.linalg.eigvalsh(H)
+        # if eigvals.min() < 0:
+        #     H = H - eigvals.min() * np.eye(H.shape[0])
 
-    # step 2 - solve quadratic model and return point (in tensor form)
-    rel_x_hat, f_tilda_x_hat = solve_relative_quad_in_ball(c, g, H, delta)
-    x_hat = torch.from_numpy(points[0]) + rel_x_hat
+        c_t = torch.from_numpy(c)
+        g_t = torch.from_numpy(g)
+        H_t = torch.from_numpy(H)
+        #will this function f tilda still work even when we switched to relative points????
+        def f_tilda(x): # NOTE: the model was built assuming p0 is 0 (centered at x_k)
+            x_rel = x - x_k
+            return c_t + g_t @ x_rel + 0.5 * x_rel @ H_t @ x_rel
 
-    return x_hat, f_tilda_x_hat, g_t, f_tilda
+        # step 2 - solve quadratic model and return point (in tensor form)
+        rel_x_hat, f_tilda_x_hat = solve_relative_quad_in_ball(c, g, H, raw_delta)
+        x_hat = torch.from_numpy(points[0]) + rel_x_hat
+        # raise Exception("some exception")
+        return x_hat, f_tilda_x_hat, g_t, f_tilda
+    except Exception as e: # for some reason, either building or solving the model failed, just do linear
+        print(f"WARNING: failed to build quad model for MBTR, doing linear: {e}")
+        print(raw_points)
+        return get_lin_model_and_solution(raw_points, raw_func_values, raw_delta)
+
 
 
 def get_lin_model_and_solution(points, func_values, delta):
@@ -146,7 +160,8 @@ def get_lin_model_and_solution(points, func_values, delta):
     x_k = points[0]
     # p+1 points given
     p = points.shape[0] - 1
-    # print(points)
+    print(points)
+    print(func_values)
     # print("p " + str(p))
 
     rel_points = points - points[0]
@@ -158,11 +173,13 @@ def get_lin_model_and_solution(points, func_values, delta):
     delta_f = delta_f.to(torch.float64)
     
     # D is [x1-x0, x2-x0 ... xp-x0]
-    D = rel_points[1:] - rel_points[0]
-    D_t_pinv = torch.linalg.pinv(D.t())
+    D_t = rel_points[1:] - rel_points[0]
+    D_t_pinv = torch.linalg.pinv(D_t)
     
     # calculate grad and build linear model (already in torch)
     # print(D_t_pinv, delta_f)
+    print("D_t_pinv:", D_t_pinv)
+    print("delta_f", delta_f)
     g = D_t_pinv @ delta_f
     c = func_values[0] - g@rel_points[0] # c + gxi = fi, so for x0: c = f0 - gx0
 
