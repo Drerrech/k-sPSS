@@ -35,7 +35,7 @@ class point_reuse:
 
 
 class BB_cutest_collection:
-    def __init__(self, print_load_status=True, write_to_file="", cap_n_problems=10000, max_dim = 1000):
+    def __init__(self, print_load_status=True, write_to_file="", cap_n_problems=10000, max_dim = 1000, problem_names=None):
         self.problems = []
         self.problem_functions = []
         
@@ -43,7 +43,7 @@ class BB_cutest_collection:
             print("loading problems...")
         
         # problem criteria
-        raw_problem_selection = pycutest.find_problems(objective="sum of squares other", constraints="unconstrained") # the query for dim contrain simply doesn't work, so implemented manually
+        raw_problem_selection = pycutest.find_problems(objective="sum of squares other", constraints="unconstrained") if problem_names is None else problem_names # the query for dim contrain simply doesn't work, so implemented manually
         # load problems into self.problems and load the pytorch compativle functions into self.problem_functions
         timings = []
         for i, p_name in enumerate(raw_problem_selection):
@@ -121,16 +121,38 @@ class BB_k_fail_wrapper:
         else:
             k = overwrite_k
         
-        # get binary tensor for failure
-        completed = torch.randperm(p, dtype=torch.int)[:p-k] # mask of indexes of p-k elements
-
-        # evaluate
-        f_vals = torch.zeros(p-k)
-        for i, point in enumerate(points[completed]):
-            f_vals[i] = min(1e20, max(-1e20, self.p_reuse.evaluate(point)))
         
         # calculate, actual_batch_calls, how many it would take in a cluster
         actual_batch_calls = math.ceil(p / self.num_cpus)
+        
+        # completed idxs
+        completed = torch.tensor([], dtype=torch.int)
+        for b_idx in range (actual_batch_calls - 1):
+            completed_batch = b_idx * self.num_cpus + torch.randperm(self.num_cpus, dtype=torch.int)[:-k]
+            completed = torch.cat([completed, completed_batch.int()])
+        # tail
+        _tail_idxs = []
+        _sub_batch_completion = torch.randperm(self.num_cpus, dtype=torch.int)[:-k] # completed idx (starting with 0)
+        _tail_start_idx = (actual_batch_calls-1) * self.num_cpus
+        # print("_tail_start_idx:", _tail_start_idx)
+        _n_tail_elems = p - _tail_start_idx
+        # print("_n_tail_elems:", _n_tail_elems)
+        for sub_batch_idx in _sub_batch_completion:
+            # print("sub idx", sub_batch_idx)
+            if sub_batch_idx >= _n_tail_elems:
+                continue
+            # print("appending")
+            _tail_idxs.append(_tail_start_idx + sub_batch_idx)
+        completed = torch.cat([completed, torch.tensor(_tail_idxs, dtype=torch.int)])
+
+        # completed = torch.randperm(p, dtype=torch.int)[:p-k] # mask of indexes of p-k elements
+
+        # print("completed:", completed)
+
+        # evaluate
+        f_vals = torch.zeros(completed.shape[0])
+        for i, point in enumerate(points[completed]):
+            f_vals[i] = min(1e20, max(-1e20, self.p_reuse.evaluate(point)))
 
         return (f_vals, completed, actual_batch_calls)
 

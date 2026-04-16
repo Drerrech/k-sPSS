@@ -23,12 +23,14 @@ def get_random_rotation_matrix(n):
 
 
 class GPS_k_fail:
-    def __init__(self, x, bb_k_fail_wrapper, delta, tao, prediction_software, log_file_path): # f_omega will not be used as no problems in the test set have contraints
+    def __init__(self, x, bb_k_fail_wrapper, delta, tao, prediction_software, log_file_path, use_opportunistic_cpu_exploitation=True): # f_omega will not be used as no problems in the test set have contraints
         self.x = x
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.delta = delta
         self.tao = tao
         self.prediction_software = prediction_software
+
+        self.use_opportunistic_cpu_exploitation = use_opportunistic_cpu_exploitation
 
         self.log_file_path = log_file_path # path to .txt where info should be stored
         open(log_file_path, "w").close() # clear log file
@@ -58,9 +60,52 @@ class GPS_k_fail:
         # rotate the matrix (optional)
         if random_rotate:
             P = (get_random_rotation_matrix(self.x.shape[0]) @ P.T).T
+        
 
-        f_vals, completed, actual_batch_calls = self.bb_k_fail_wrapper.batch_call(P)
-        actual_k = completed.shape[0]
+        actual_batch_calls = 0
+        actual_k = 0
+        
+        if not self.use_opportunistic_cpu_exploitation:
+            f_vals, completed, actual_batch_calls = self.bb_k_fail_wrapper.batch_call(P)
+            actual_k = completed.shape[0]
+
+            # complete polling
+            min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
+            if f_vals[min_f_val_idx] < self.cur_f_val: # found a better value -> update point and tao
+                self.x = P[completed[min_f_val_idx]]
+                self.cur_f_val = f_vals[min_f_val_idx]
+                self.delta = self.delta / self.tao
+            else: # failed to find a better point
+                self.delta = self.delta * self.tao
+        else:
+            # reorder P randomly so calling explores in all directions each batch
+            P = P[torch.randperm(P.size(0))]
+            # print(P)
+
+            num_cpus = self.bb_k_fail_wrapper.num_cpus
+            # call 1 batch, check for improbement, if not call again until checked all points in P
+            for i in range(0, P.size(0), num_cpus):
+                # print("selection:", P[i : min(P.size(0), i+num_cpus)])
+                sub_batch_f_vals, sub_batch_completed, sub_batch_actual_batch_calls = self.bb_k_fail_wrapper.batch_call(P[i : min(P.size(0), i+num_cpus)])
+
+                actual_batch_calls += sub_batch_actual_batch_calls # update total count on this iteration
+                actual_k += sub_batch_completed.shape[0] # update actual_k (total) as well
+
+                # check if we actually got anything, if not try again with next call
+                if sub_batch_f_vals.shape[0] == 0:
+                    continue
+
+                # opportunistic - check for improvement
+                min_sub_batch_f_val_idx = torch.argmin(sub_batch_f_vals) # note, this is an idx of returned values, not an index of P
+                if sub_batch_f_vals[min_sub_batch_f_val_idx] < self.cur_f_val: # found a better value -> update point and tao
+                    self.x = P[sub_batch_completed[min_sub_batch_f_val_idx]]
+                    self.cur_f_val = sub_batch_f_vals[min_sub_batch_f_val_idx]
+                    self.delta = self.delta / self.tao
+                    break # exit loop, point found, values updated
+
+            # opportunistic - if this step was reached failed to find improvement
+            self.delta = self.delta * self.tao
+        
 
         # update k_fail and number of f evals
         self.prediction_software.add_actual_k(actual_k)
@@ -69,15 +114,6 @@ class GPS_k_fail:
         self.n_failed_function_calls += actual_k
         self.n_batch_calls += actual_batch_calls
 
-        # given that the points are evaluated in batches, using oppotrunistic or ordered polling will not make any sense, only complete, which does raise some questions...
-        # complete polling
-        min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
-        if f_vals[min_f_val_idx] < self.cur_f_val: # found a better value -> update point and tao
-            self.x = P[completed[min_f_val_idx]]
-            self.cur_f_val = f_vals[min_f_val_idx]
-            self.delta = self.delta / self.tao
-        else: # failed to find a better point
-            self.delta = self.delta * self.tao
         
         # update params
         self.k += 1
