@@ -154,5 +154,5 @@ class BB_k_fail_wrapper:
         for i, point in enumerate(points[completed]):
             f_vals[i] = min(1e20, max(-1e20, self.p_reuse.evaluate(point)))
 
-        return (f_vals, completed, actual_batch_calls)
+        return (f_vals, completed, actual_batch_calls, k.item())
 

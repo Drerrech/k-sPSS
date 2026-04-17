@@ -64,10 +64,12 @@ class GPS_k_fail:
 
         actual_batch_calls = 0
         actual_k = 0
+        total_failed = 0
         
         if not self.use_opportunistic_cpu_exploitation:
-            f_vals, completed, actual_batch_calls = self.bb_k_fail_wrapper.batch_call(P)
-            actual_k = completed.shape[0]
+            f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(P)
+
+            total_failed = P.shape[0] - completed.shape[0]
 
             # complete polling
             min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
@@ -86,10 +88,11 @@ class GPS_k_fail:
             # call 1 batch, check for improbement, if not call again until checked all points in P
             for i in range(0, P.size(0), num_cpus):
                 # print("selection:", P[i : min(P.size(0), i+num_cpus)])
-                sub_batch_f_vals, sub_batch_completed, sub_batch_actual_batch_calls = self.bb_k_fail_wrapper.batch_call(P[i : min(P.size(0), i+num_cpus)])
+                sub_batch_f_vals, sub_batch_completed, sub_batch_actual_batch_calls, sub_batch_actual_k = self.bb_k_fail_wrapper.batch_call(P[i : min(P.size(0), i+num_cpus)])
+                total_failed += P[i : min(P.size(0), i+num_cpus)].shape[0] - sub_batch_completed.shape[0]
 
                 actual_batch_calls += sub_batch_actual_batch_calls # update total count on this iteration
-                actual_k += sub_batch_completed.shape[0] # update actual_k (total) as well
+                actual_k += sub_batch_actual_k # update actual_k (total) as well
 
                 # check if we actually got anything, if not try again with next call
                 if sub_batch_f_vals.shape[0] == 0:
@@ -108,10 +111,9 @@ class GPS_k_fail:
         
 
         # update k_fail and number of f evals
-        self.prediction_software.add_actual_k(actual_k)
-        # update counters NOTE: not all of them are update here (self.n_1_batch_calls)
+        self.prediction_software.add_actual_k(-1)
         self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
-        self.n_failed_function_calls += actual_k
+        self.n_failed_function_calls += total_failed
         self.n_batch_calls += actual_batch_calls
 
         
