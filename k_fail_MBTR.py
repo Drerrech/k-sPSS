@@ -3,7 +3,7 @@ import models
 import torch
 
 class MBTR_k_fail:
-    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True): # f_omega will not be used as no problems in the test set have contraints
+    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12): # f_omega will not be used as no problems in the test set have contraints
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.x = x
         self.cur_f_val = self.bb_k_fail_wrapper.p_reuse.evaluate(self.x) # using hashing (or not at step 0) get the current value of f
@@ -18,6 +18,7 @@ class MBTR_k_fail:
         self.n = x.shape[0]
 
         self.use_opportunistic_cpu_exploitation = use_opportunistic_cpu_exploitation
+        self.opportunistic_cpu_exploitation_manual_point_limit = opportunistic_cpu_exploitation_manual_point_limit
 
         self.log_file_path = log_file_path # path to .txt where info should be stored
         open(log_file_path, "w").close() # clear log file
@@ -69,7 +70,7 @@ class MBTR_k_fail:
             f_vals = torch.cat((torch.tensor(self.cur_f_val).unsqueeze(0), f_vals)) # add f(x_k)
             
             selected_order = 1
-            if points.shape[0] > self.n: # capable of a poor quad model (n+1 - linear, (n+1)(n+2)/2 - quad)
+            if points.shape[0] > self.n + k_fail_predicted: # capable of a poor quad model (n+1 + k - linear, (n+1)(n+2)/2 + k - quad)
                 selected_order = 2
 
             self.prediction_software.add_actual_k(-1)
@@ -138,25 +139,30 @@ class MBTR_k_fail:
             points = torch.cat((self.x.unsqueeze(0), additional_points))
             # print(points, additional_points)
             f_vals = torch.cat((torch.tensor(self.cur_f_val).unsqueeze(0), additional_f_vals))
+            # print("STARTING", points.shape, f_vals.shape)
 
             # keep adding model points + checking point -> see if passes accuracy check
             got_sufficient_acc = False
             starting_iteration_done = False
+            iterate_success = False
             
-            while points.shape[0] < p_total+1 or not starting_iteration_done:
+            while (points.shape[0] < p_total+1 and points.shape[0] < self.opportunistic_cpu_exploitation_manual_point_limit) or not starting_iteration_done:
+                # print("POITNS AND LIMIT:", points.shape[0], p_total)
                 starting_iteration_done = True
 
                 # try to build model with what we have right no (no additional), and check
                 selected_order = 1
-                if points.shape[0] > self.n: # capable of a poor quad model (n+1 - linear, (n+1)(n+2)/2 - quad)
+                if points.shape[0] > self.n + k_fail_predicted: # capable of a poor quad model (n+1 + k - linear, (n+1)(n+2)/2 + k - quad)
                     selected_order = 2
                 
                 x_hat, f_tilda_x_hat, g_tilda, f_tilda = None, None, None, None
                 if selected_order == 1:
                     x_hat, f_tilda_x_hat, g_tilda, f_tilda = models.get_lin_model_and_solution(points, f_vals, self.delta)
+                    # print("LIN", points.shape, f_vals.shape)
                     message += " | trying linear partial model with " + str(points.shape[0]) + " points"
                 elif selected_order == 2:
                     x_hat, f_tilda_x_hat, g_tilda, f_tilda = models.get_quad_model_and_solution(points, f_vals, self.delta)
+                    print("QUAD", points.shape, f_vals.shape)
                     message += " | trying quadratic partial model with " + str(points.shape[0]) + " points"
                 
                 # 2 - model accuracy checks
@@ -188,42 +194,32 @@ class MBTR_k_fail:
                         break
                 
                 if not found_x_hat: # will have to use an additional batch call
-                    message += " FAILED TO GEt X_HAT, using additional batch call"
+                    message += " FAILED TO GET X_HAT, using additional batch call"
+                    # print("FAILED TO GET X_HAT, using additional batch call")
                     f_x_hat = self.bb_k_fail_wrapper.p_reuse.evaluate(x_hat)
                     self.n_batch_calls += 1
                     self.n_1_batch_calls += 1
                 
                 # get additional model points, will be cat-ed if needed in 2.b
-                additional_model_f_vals = additional_f_vals[:(num_cpus - (k_fail_predicted+1))]
                 additional_model_points = []
+                additional_model_f_vals = []
                 for i, idx_completed in enumerate(completed):
                     if idx_completed < num_cpus - (k_fail_predicted+1): # model point
                         additional_model_points.append(additional_points[idx_completed])
+                        additional_model_f_vals.append(additional_f_vals[i])
                 
                 additional_model_points = torch.stack(additional_model_points)
+                additional_model_f_vals = torch.stack(additional_model_f_vals)
 
                 # 2.b - insufficient accuracy?
                 if self.delta > self.mu * g_tilda_norm:
                     # NOTE: instead of self.delta *= self.gamma, try again with more points
                     points = torch.cat((points, additional_model_points)) 
                     f_vals = torch.cat((f_vals, additional_model_f_vals))
+                    continue
                 else:
-                    # 4 - candidate test and trust region update
-                    rho = (self.cur_f_val - f_x_hat) / (f_tilda(self.x) - f_tilda_x_hat)
-
-                    if rho > self.eta: # iterate success
-                        self.x = x_hat
-                        self.cur_f_val = f_x_hat
-                        self.delta /= self.gamma
-                        message += " | iterate success"
-                    else: # iterate failure
-                        self.delta *= self.gamma
-                        message += " | iterate failure"
-                    
                     got_sufficient_acc = True
-                    break
-
-            if not got_sufficient_acc:
+                
                 # 4 - candidate test and trust region update
                 rho = (self.cur_f_val - f_x_hat) / (f_tilda(self.x) - f_tilda_x_hat)
 
@@ -232,9 +228,17 @@ class MBTR_k_fail:
                     self.cur_f_val = f_x_hat
                     self.delta /= self.gamma
                     message += " | iterate success"
-                else: # iterate failure
-                    self.delta *= self.gamma
-                    message += " | iterate failure"
+                    iterate_success = True
+                    break
+                else: # iterate failure - instead of the normal delta decrease try more points for the model
+                    points = torch.cat((points, additional_model_points)) 
+                    f_vals = torch.cat((f_vals, additional_model_f_vals))
+                    message += " | (iterate failure) trying more points before decreasing delta"
+                    continue
+            
+            if (not got_sufficient_acc) or (not iterate_success): # 2b - insufficient accuracy OR 4 - in the iterations success never happened, so decrease delta
+                message += " | exploitation failed, decreasing delta"
+                self.delta *= self.gamma
 
         # update params and log
         message += " | actual_k=" + str(actual_k)
