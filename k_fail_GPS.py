@@ -3,7 +3,7 @@ import polytope_k_sPSS
 import torch
 
 def select_k_spss(predicted_k_fail, num_dim, delta):
-    return polytope_k_sPSS.default_k_sPSS(num_dim, predicted_k_fail) * delta
+    return polytope_k_sPSS.normalised_k_sPSS(num_dim, predicted_k_fail) * delta
 
 def get_random_rotation_matrix(n):
     i_hat = torch.randint(0, n-1, (1,)) # [0, n-1) (idx starts at 0)
