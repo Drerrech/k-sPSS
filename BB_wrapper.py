@@ -128,11 +128,11 @@ class BB_k_fail_wrapper:
         # completed idxs
         completed = torch.tensor([], dtype=torch.int)
         for b_idx in range (actual_batch_calls - 1):
-            completed_batch = b_idx * self.num_cpus + torch.randperm(self.num_cpus, dtype=torch.int)[:-k]
+            completed_batch = b_idx * self.num_cpus + (torch.randperm(self.num_cpus, dtype=torch.int)[:-k] if k > 0 else torch.randperm(self.num_cpus, dtype=torch.int))
             completed = torch.cat([completed, completed_batch.int()])
         # tail
         _tail_idxs = []
-        _sub_batch_completion = torch.randperm(self.num_cpus, dtype=torch.int)[:-k] # completed idx (starting with 0)
+        _sub_batch_completion = (torch.randperm(self.num_cpus, dtype=torch.int)[:-k] if k > 0 else torch.randperm(self.num_cpus, dtype=torch.int)) # completed idx (starting with 0)
         _tail_start_idx = (actual_batch_calls-1) * self.num_cpus
         # print("_tail_start_idx:", _tail_start_idx)
         _n_tail_elems = p - _tail_start_idx
@@ -144,10 +144,6 @@ class BB_k_fail_wrapper:
             # print("appending")
             _tail_idxs.append(_tail_start_idx + sub_batch_idx)
         completed = torch.cat([completed, torch.tensor(_tail_idxs, dtype=torch.int)])
-
-        # completed = torch.randperm(p, dtype=torch.int)[:p-k] # mask of indexes of p-k elements
-
-        # print("completed:", completed)
 
         # evaluate
         f_vals = torch.zeros(completed.shape[0])

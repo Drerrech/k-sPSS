@@ -1,4 +1,5 @@
 import polytope_k_sPSS
+from models import get_random_unit_D
 
 import torch
 
@@ -6,8 +7,7 @@ def select_k_spss(predicted_k_fail, num_dim, delta):
     return polytope_k_sPSS.normalised_k_sPSS(num_dim, predicted_k_fail) * delta
 
 def get_random_rotation_matrix(n):
-    i_hat = torch.randint(0, n-1, (1,)) # [0, n-1) (idx starts at 0)
-    j_hat = torch.randint(i_hat, n, (1,))
+    i_hat, j_hat = torch.randperm(n)[:2]
     theta = torch.rand((1,)) * 2 * torch.pi
     
     m = torch.eye(n)
@@ -23,7 +23,7 @@ def get_random_rotation_matrix(n):
 
 
 class GPS_k_fail:
-    def __init__(self, x, bb_k_fail_wrapper, delta, tao, prediction_software, log_file_path, use_opportunistic_cpu_exploitation=True): # f_omega will not be used as no problems in the test set have contraints
+    def __init__(self, x, bb_k_fail_wrapper, delta, tao, prediction_software, log_file_path, use_opportunistic_cpu_exploitation=True, utilise_batches_fully=True): # f_omega will not be used as no problems in the test set have contraints
         self.x = x
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.delta = delta
@@ -31,6 +31,7 @@ class GPS_k_fail:
         self.prediction_software = prediction_software
 
         self.use_opportunistic_cpu_exploitation = use_opportunistic_cpu_exploitation
+        self.utilise_batches_fully = utilise_batches_fully
 
         self.log_file_path = log_file_path # path to .txt where info should be stored
         open(log_file_path, "w").close() # clear log file
@@ -53,14 +54,35 @@ class GPS_k_fail:
             _f.write(s + "\n")
     
     def step_default(self, random_rotate=True): # delta is updated nomally
+        num_cpus = self.bb_k_fail_wrapper.num_cpus
+        
         # 2 - poll
         k_fail_predicted = self.prediction_software.predict_k() # predict k
         
         P = select_k_spss(k_fail_predicted, self.x.shape[0], self.delta) # tensor of points to eval
+
+        # check if P != z*num_cpus
+        # additional: diff//2 random with len delta/2, rest random with len 2*delta
+        if P.shape[0] % num_cpus != 0 and self.utilise_batches_fully: # the last batch is not fully utilised
+            difference = num_cpus - P.shape[0]%num_cpus
+            num_inner = difference//2
+            num_outer = difference - num_inner
+
+            # generate the additional vectors and concat
+            inner = get_random_unit_D(num_inner, self.x.shape[0]) * self.delta * 0.5
+            outer = get_random_unit_D(num_outer, self.x.shape[0]) * self.delta * 2
+
+            P = torch.cat([P, inner, outer])
+
+        # TODO: should we do this? - for now yes, can ask warren abut it
+        P = P[torch.randperm(P.shape[0])]
+
         # rotate the matrix (optional)
-        if random_rotate:
+        if random_rotate and self.x.shape[0] > 1: # can't rotate in 1D
             P = (get_random_rotation_matrix(self.x.shape[0]) @ P.T).T
         
+        # NOTE: IMPORTANT, P is relative! so need to make it absolute
+        P = self.x + P        
 
         actual_batch_calls = 0
         actual_k = 0
@@ -72,6 +94,7 @@ class GPS_k_fail:
             total_failed = P.shape[0] - completed.shape[0]
 
             # complete polling
+            # print(f_vals, completed, actual_batch_calls, actual_k)
             min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
             if f_vals[min_f_val_idx] < self.cur_f_val: # found a better value -> update point and tao
                 self.x = P[completed[min_f_val_idx]]
@@ -81,33 +104,42 @@ class GPS_k_fail:
                 self.delta = self.delta * self.tao
         else:
             # reorder P randomly so calling explores in all directions each batch
-            P = P[torch.randperm(P.size(0))]
+            # # TODO REMOVE
+            # perm_gen = torch.Generator(device=P.device)
+            # perm_gen.manual_seed(12345)
+            # P = P[torch.randperm(P.shape[0], generator=perm_gen, device=P.device)]
             # print(P)
 
-            num_cpus = self.bb_k_fail_wrapper.num_cpus
             # call 1 batch, check for improbement, if not call again until checked all points in P
-            for i in range(0, P.size(0), num_cpus):
-                # print("selection:", P[i : min(P.size(0), i+num_cpus)])
-                sub_batch_f_vals, sub_batch_completed, sub_batch_actual_batch_calls, sub_batch_actual_k = self.bb_k_fail_wrapper.batch_call(P[i : min(P.size(0), i+num_cpus)])
-                total_failed += P[i : min(P.size(0), i+num_cpus)].shape[0] - sub_batch_completed.shape[0]
+            success = False
+            for i in range(0, P.shape[0], num_cpus):
+                # print("selection:", P[i : min(P.shape[0], i+num_cpus)])
+                sub_batch_P = P[i : min(P.shape[0], i+num_cpus)]
+
+                sub_batch_f_vals, sub_batch_completed, sub_batch_actual_batch_calls, sub_batch_actual_k = self.bb_k_fail_wrapper.batch_call(sub_batch_P)
+                # print(sub_batch_completed)
+                total_failed += sub_batch_P.shape[0] - sub_batch_completed.shape[0]
 
                 actual_batch_calls += sub_batch_actual_batch_calls # update total count on this iteration
                 actual_k += sub_batch_actual_k # update actual_k (total) as well
 
                 # check if we actually got anything, if not try again with next call
                 if sub_batch_f_vals.shape[0] == 0:
+                    print("GPS exploitative: nothing came back")
                     continue
 
                 # opportunistic - check for improvement
                 min_sub_batch_f_val_idx = torch.argmin(sub_batch_f_vals) # note, this is an idx of returned values, not an index of P
                 if sub_batch_f_vals[min_sub_batch_f_val_idx] < self.cur_f_val: # found a better value -> update point and tao
-                    self.x = P[sub_batch_completed[min_sub_batch_f_val_idx]]
+                    self.x = sub_batch_P[sub_batch_completed[min_sub_batch_f_val_idx]]
                     self.cur_f_val = sub_batch_f_vals[min_sub_batch_f_val_idx]
                     self.delta = self.delta / self.tao
+                    success = True
                     break # exit loop, point found, values updated
 
-            # opportunistic - if this step was reached failed to find improvement
-            self.delta = self.delta * self.tao
+            # opportunistic - check if we had success or not
+            if not success:
+                self.delta = self.delta * self.tao
         
 
         # update k_fail and number of f evals

@@ -119,8 +119,25 @@ def solve_relative_quad_in_ball(c, g, H, delta): # assumes open-ball is centered
     
     # otherwise find lambda that places x on the boundary
     secular = lambda lam: np.linalg.norm(x_of_lam(lam)) - delta
-    lam_star = brentq(secular, lam_min, lam_min + 1e6)
+    
+    lam_lo = lam_min # guaranteed positive
+    lam_hi = max(lam_min + 1.0, 1.0)
+    max_iters = 60
+    for _ in range(max_iters):
+        try:
+            val_hi = secular(lam_hi)
+        except np.linalg.LinAlgError:
+            lam_hi *= 2
+            continue
+        if val_hi < 0:
+            break
+        lam_hi *= 2
+    else:
+        print(f"Could not bracket secular equation: secular({lam_lo})={secular(lam_lo):.4f}, secular({lam_hi})={secular(lam_hi):.4f}")
+    
+    lam_star = brentq(secular, lam_lo, lam_hi)
     x = x_of_lam(lam_star)
+    
     return torch.from_numpy(x), c + g @ x + 0.5 * x @ H @ x
 
 

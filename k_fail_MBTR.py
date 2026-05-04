@@ -39,6 +39,8 @@ class MBTR_k_fail:
             _f.write(s + "\n")
     
     def step_default(self):
+        num_cpus = self.bb_k_fail_wrapper.num_cpus
+        
         message = ""
 
         # 1 - model
@@ -58,7 +60,7 @@ class MBTR_k_fail:
             # 1.1 - build points to build the model
             # TODO: test for oversupply - though get model and sltn methods might take care of this already?
             # print("P:", p)
-            points = self.x + self.delta*models.get_random_unit_D(p_total+0, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            points = self.x + self.delta*models.get_random_unit_D(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
 
             # 1.2 get function value at points
             f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(points)
@@ -123,8 +125,6 @@ class MBTR_k_fail:
             # not included
         
         else: # exploitation
-            num_cpus = self.bb_k_fail_wrapper.num_cpus
-
             additional_points = self.x + self.delta*models.get_random_unit_D(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
             additional_f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(additional_points)
             
@@ -162,7 +162,7 @@ class MBTR_k_fail:
                     message += " | trying linear partial model with " + str(points.shape[0]) + " points"
                 elif selected_order == 2:
                     x_hat, f_tilda_x_hat, g_tilda, f_tilda = models.get_quad_model_and_solution(points, f_vals, self.delta)
-                    print("QUAD", points.shape, f_vals.shape)
+                    # print("QUAD", points.shape, f_vals.shape)
                     message += " | trying quadratic partial model with " + str(points.shape[0]) + " points"
                 
                 # 2 - model accuracy checks
@@ -194,15 +194,16 @@ class MBTR_k_fail:
                         break
                 
                 if not found_x_hat: # will have to use an additional batch call
-                    message += " FAILED TO GET X_HAT, using additional batch call"
+                    message += " FAILED TO GET X_HAT, using additional batch call" # NOTE: i think this should never happen, if it does it might be a bug
                     # print("FAILED TO GET X_HAT, using additional batch call")
                     f_x_hat = self.bb_k_fail_wrapper.p_reuse.evaluate(x_hat)
                     self.n_batch_calls += 1
                     self.n_1_batch_calls += 1
                 
                 # get additional model points, will be cat-ed if needed in 2.b
-                additional_model_points = []
-                additional_model_f_vals = []
+                # don't forget to add one x_hat and f_x_hat point
+                additional_model_points = [x_hat]
+                additional_model_f_vals = [torch.tensor(f_x_hat, dtype=torch.float64)]
                 for i, idx_completed in enumerate(completed):
                     if idx_completed < num_cpus - (k_fail_predicted+1): # model point
                         additional_model_points.append(additional_points[idx_completed])
