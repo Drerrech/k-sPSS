@@ -2,6 +2,10 @@ import pycutest
 import torch
 import time
 import math
+import inspect
+
+ABNORMAL_HIGH = 1e20
+ABNORMAL_LOW = -1e20
 
 class point_reuse:
         def __init__(self, f):
@@ -9,13 +13,18 @@ class point_reuse:
             self.f_points = {}
             self.points_raw = []
         
-        def evaluate(self, x):
+        def evaluate(self, x, p_name="NAME_NONE", abnormality_log_file="alg_logs/abnormalities.txt"):
             x_hash = x.numpy().tobytes()
 
             if x_hash in self.f_points.keys(): # already evaluated at this exact point
                 return self.f_points[x_hash]
             else: # must evaluate from scratch
                 val = self.f(x)
+
+                if val <= ABNORMAL_LOW or ABNORMAL_HIGH <= val:
+                    with open(abnormality_log_file, "a") as _f:
+                        _f.write(f"{p_name} AT {x.tolist()} f(x) = {val}\n")
+
                 self.f_points[x_hash] = val
                 self.points_raw.append(x)
                 return val # 1 stands for 1 evaluation of the function
@@ -99,6 +108,8 @@ class BB_k_fail_wrapper:
 
         if not random_seed is None:
             torch.manual_seed(seed=random_seed)
+        
+        self.p_name = list(inspect.signature(f).parameters.values())[1].default.name
     
     def batch_call(self, points, overwrite_k=-1): # optional k argument to overwrite the pattern
         p = points.shape[0] # p - |D| where D' ( D and D is k-sPSS
@@ -148,7 +159,7 @@ class BB_k_fail_wrapper:
         # evaluate
         f_vals = torch.zeros(completed.shape[0])
         for i, point in enumerate(points[completed]):
-            f_vals[i] = min(1e20, max(-1e20, self.p_reuse.evaluate(point)))
+            f_vals[i] = min(1e20, max(-1e20, self.p_reuse.evaluate(point, p_name=self.p_name)))
 
         return (f_vals, completed, actual_batch_calls, k.item())
 
