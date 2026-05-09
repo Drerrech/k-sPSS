@@ -60,7 +60,7 @@ class MBTR_k_fail:
             # 1.1 - build points to build the model
             # TODO: test for oversupply - though get model and sltn methods might take care of this already?
             # print("P:", p)
-            points = self.x + self.delta*models.get_random_unit_D(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            points = self.x + self.delta*models.get_random_D_max_norm_1(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
 
             # 1.2 get function value at points
             f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(points)
@@ -72,7 +72,7 @@ class MBTR_k_fail:
             f_vals = torch.cat((torch.tensor(self.cur_f_val).unsqueeze(0), f_vals)) # add f(x_k)
             
             selected_order = 1
-            if points.shape[0] > self.n + k_fail_predicted: # capable of a poor quad model (n+1 + k - linear, (n+1)(n+2)/2 + k - quad)
+            if self.preferred_model_order == 2 and points.shape[0] > self.n + k_fail_predicted: # capable of a poor quad model (n+1 + k - linear, (n+1)(n+2)/2 + k - quad)
                 selected_order = 2
 
             self.prediction_software.add_actual_k(-1)
@@ -125,7 +125,7 @@ class MBTR_k_fail:
             # not included
         
         else: # exploitation
-            additional_points = self.x + self.delta*models.get_random_unit_D(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            additional_points = self.x + self.delta*models.get_random_D_max_norm_1(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
             additional_f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(additional_points)
             
             
@@ -152,7 +152,7 @@ class MBTR_k_fail:
 
                 # try to build model with what we have right no (no additional), and check
                 selected_order = 1
-                if points.shape[0] > self.n + k_fail_predicted: # capable of a poor quad model (n+1 + k - linear, (n+1)(n+2)/2 + k - quad)
+                if self.preferred_model_order == 2 and points.shape[0] > self.n + k_fail_predicted: # capable of a poor quad model (n+1 + k - linear, (n+1)(n+2)/2 + k - quad)
                     selected_order = 2
                 
                 x_hat, f_tilda_x_hat, g_tilda, f_tilda = None, None, None, None
@@ -175,7 +175,7 @@ class MBTR_k_fail:
                 
                 # evaluate additional points: (num_cpus-(k+1)) new model points + (k+1) f_x_hat points so at least one makes it out
                 # if f_x_hat does not make it out due to underpredicted k, one full batch will be used up for f_x_hat
-                additional_points = self.x + self.delta*models.get_random_unit_D(num_cpus - (k_fail_predicted+1), self.n)
+                additional_points = self.x + self.delta*models.get_random_D_max_norm_1(num_cpus - (k_fail_predicted+1), self.n)
                 additional_points = torch.cat([additional_points, torch.ones((k_fail_predicted+1, self.n)) * x_hat]) # idxs [num_cpus-(k+1), num_cpus-1] are x_hat points
                 
                 additional_f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(additional_points)

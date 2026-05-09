@@ -71,6 +71,7 @@ def get_quad_params_simplex_hessian(rel_points, func_values):
     S_t = rel_points[1:] - rel_points[0] # x0 is the first rel_point
     S_t_pseudo_inv = np.linalg.pinv(S_t)
     H = S_t_pseudo_inv @ delta2_s
+    H = (H + H.T) / 2
 
     c = np.array(func_values[0]) # as the 0-th point x0 is relative and 0
 
@@ -236,7 +237,7 @@ def get_lin_model_and_solution(points, func_values, delta):
     
     # solve quadratic model and return point (in tensor form)
     # as mentioned, step in -g with size delta
-    x_hat = x_k - g * delta
+    x_hat = x_k - delta * g / torch.linalg.vector_norm(g)
     f_tilda_x_hat = f_tilda(x_hat)
 
     return x_hat, f_tilda_x_hat, g, f_tilda
@@ -249,4 +250,15 @@ def get_random_unit_D(p, n): # p - number of points, returns p randomly directed
         mask = norms < 1e-8
         vectors[mask] = (torch.rand(mask.sum(), n) - 0.5) * 2
         norms = torch.sqrt((vectors ** 2).sum(1))
+    vectors /= norms.unsqueeze(1)
+    return vectors
+
+def get_random_D_max_norm_1(p, n):
+    vectors = (torch.rand(p, n) - 0.5) * 2
+    norms = torch.sqrt((vectors ** 2).sum(1))
+    while (norms < 1e-8).any():
+        mask = norms < 1e-8
+        vectors[mask] = (torch.rand(mask.sum(), n) - 0.5) * 2
+        norms = torch.sqrt((vectors ** 2).sum(1))
+    vectors /= norms.max()          # ← divide whole batch by the single largest norm
     return vectors

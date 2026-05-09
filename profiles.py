@@ -120,6 +120,42 @@ def data_profile(num_algs: int, num_problems: int, alg_log_paths: list[list], ta
     
     return profile_vals
 
+def accuracy_profile(num_algs: int, num_problems: int, alg_log_paths: list[list], d_vals: torch.tensor=torch.linspace(1, 8, 8)):
+    f_tot_N_acc = torch.zeros((num_algs, num_problems))
+    profile_vals = torch.zeros((num_algs, d_vals.shape[0]))
+
+    for problem_idx in range(num_problems):
+        # find f* for this problem
+        f_star = torch.min(parse_log_file(alg_log_paths[0][problem_idx])["f_x"])
+        for alg_idx in range(1, num_algs):
+            f_star = min(f_star, torch.min(parse_log_file(alg_log_paths[alg_idx][problem_idx])["f_x"]))
+        
+        for alg_idx in range(num_algs):
+            info_dict = parse_log_file(alg_log_paths[alg_idx][problem_idx])
+            
+            # fill in N and T
+            if info_dict["f_x"][0] - f_star == 0:
+                # already optimal at start
+                f_tot_N_acc[alg_idx, problem_idx] = 1
+                continue
+            
+            f_tot_N_acc[alg_idx, problem_idx] = (info_dict["f_x"][0] - info_dict["f_x"][-1]) / (info_dict["f_x"][0] - f_star)
+        
+        # DEBUG
+        print(f"problem {problem_idx:2d} | f_star={float(f_star):.4f} | f_x[0]={float(parse_log_file(alg_log_paths[0][problem_idx])['f_x'][0]):.4f}", end="")
+        for alg_idx in range(num_algs):
+            info_dict = parse_log_file(alg_log_paths[alg_idx][problem_idx])
+            print(f" | alg{alg_idx}: f[-1]={float(info_dict['f_x'][-1]):.4f} acc={float(f_tot_N_acc[alg_idx, problem_idx]):.4f}", end="")
+        print()
+    
+    f_tot_N_acc = torch.clamp(f_tot_N_acc, 0.0, 1.0)
+    
+    # fill in profile vals
+    for alg_idx in range(num_algs):
+        for i, d_val in enumerate(d_vals):
+            profile_vals[alg_idx, i] = 1/num_problems * torch.count_nonzero(-torch.log10(1 - f_tot_N_acc[alg_idx]) >= d_val)
+    
+    return profile_vals
 
 
 MARKERS = [
@@ -186,6 +222,27 @@ def plot_data_profile(profile_vals, tau, alg_names, k_vals: torch.tensor=torch.l
     # y is a fraction so clamp to [0, 1]
     plt.ylim(0, 1)
     plt.xlim(k_vals[0], k_vals[-1])
+
+    plt.legend()
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.tight_layout()
+    plt.show()
+
+def plot_accuracy_profile(profile_vals, alg_names, d_vals: torch.tensor=torch.linspace(1, 8, 8)):
+    plt.figure(figsize=(8, 5))
+
+    for alg_idx, alg_name in enumerate(alg_names):
+        plt.plot(d_vals, profile_vals[alg_idx], label=alg_name, drawstyle="steps-post", linewidth=2.5, marker=MARKERS[alg_idx%len(MARKERS)], markersize=10)
+
+    
+    plt.xlabel("Relative accuracy d")
+    
+    plt.ylabel("Portion of instances solved to rel. acc. d")
+    plt.title(f"Accuracy profile")
+
+    # y is a fraction so clamp to [0, 1]
+    plt.ylim(0, 1)
+    plt.xlim(d_vals[0], d_vals[-1])
 
     plt.legend()
     plt.grid(True, linestyle="--", alpha=0.5)
