@@ -21,7 +21,7 @@ class point_reuse:
             else: # must evaluate from scratch
                 val = self.f(x)
 
-                if val <= ABNORMAL_LOW or ABNORMAL_HIGH <= val:
+                if val <= ABNORMAL_LOW or ABNORMAL_HIGH <= val or val != val: # also check for nan (seems to happen with negative vals)
                     with open(abnormality_log_file, "a") as _f:
                         _f.write(f"{p_name} AT {x.tolist()} f(x) = {val}\n")
 
