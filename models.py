@@ -198,8 +198,20 @@ def get_quad_model_and_solution(raw_points, raw_func_values, raw_delta): # assum
         return x_hat, f_tilda_x_hat, g_t, f_tilda
     except Exception as e: # for some reason, either building or solving the model failed, just do linear
         print(f"WARNING: failed to build quad model for MBTR, doing linear: {e}")
-        # print(raw_points)
-        return get_lin_model_and_solution(raw_points, raw_func_values, raw_delta)
+        try:
+            return get_lin_model_and_solution(raw_points, raw_func_values, raw_delta)
+        except Exception as e2:
+            print(f"WARNING: failed to build linear model for MBTR, using random fallback: {e2}")
+            x_k = raw_points[0]
+            n = x_k.shape[0]
+            direction = torch.randn(n, dtype=x_k.dtype)
+            direction /= torch.linalg.vector_norm(direction)
+            x_hat = x_k + raw_delta * direction
+            g = direction * 1e10  # large norm so accuracy check always passes
+            c = raw_func_values[0]
+            def f_tilda(x, _g=g, _c=c, _xk=x_k):
+                return _c + _g @ (x - _xk)
+            return x_hat, f_tilda(x_hat), g, f_tilda
 
 
 

@@ -5,7 +5,7 @@ import math
 import inspect
 
 ABNORMAL_HIGH = 1e20
-ABNORMAL_LOW = -1e20
+ABNORMAL_LOW = -1e19
 
 class point_reuse:
         def __init__(self, f):

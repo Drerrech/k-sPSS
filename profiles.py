@@ -142,11 +142,11 @@ def accuracy_profile(num_algs: int, num_problems: int, alg_log_paths: list[list]
             f_tot_N_acc[alg_idx, problem_idx] = (info_dict["f_x"][0] - info_dict["f_x"][-1]) / (info_dict["f_x"][0] - f_star)
         
         # DEBUG
-        print(f"problem {problem_idx:2d} | f_star={float(f_star):.4f} | f_x[0]={float(parse_log_file(alg_log_paths[0][problem_idx])['f_x'][0]):.4f}", end="")
-        for alg_idx in range(num_algs):
-            info_dict = parse_log_file(alg_log_paths[alg_idx][problem_idx])
-            print(f" | alg{alg_idx}: f[-1]={float(info_dict['f_x'][-1]):.4f} acc={float(f_tot_N_acc[alg_idx, problem_idx]):.4f}", end="")
-        print()
+        # print(f"problem {problem_idx:2d} | f_star={float(f_star):.4f} | f_x[0]={float(parse_log_file(alg_log_paths[0][problem_idx])['f_x'][0]):.4f}", end="")
+        # for alg_idx in range(num_algs):
+        #     info_dict = parse_log_file(alg_log_paths[alg_idx][problem_idx])
+        #     print(f" | alg{alg_idx}: f[-1]={float(info_dict['f_x'][-1]):.4f} acc={float(f_tot_N_acc[alg_idx, problem_idx]):.4f}", end="")
+        # print()
     
     f_tot_N_acc = torch.clamp(f_tot_N_acc, 0.0, 1.0)
     

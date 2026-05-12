@@ -2,7 +2,9 @@ import models
 
 import torch
 
-class MBTR_k_fail:
+# basically MBTR but before building a model check for decrease in sampled and if so update like gps
+
+class MBTR_GPS_hybrid_k_fail:
     def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12): # f_omega will not be used as no problems in the test set have contraints
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.x = x
@@ -65,12 +67,29 @@ class MBTR_k_fail:
             # 1.2 get function value at points
             f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(points)
             points = points[completed] # NOTE: important step
-            
+
             self.prediction_software.add_actual_k(-1)
             # update counters NOTE: not all of them are update here (self.n_1_batch_calls)
             self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
             self.n_failed_function_calls += points.shape[0] - completed.shape[0]
             self.n_batch_calls += actual_batch_calls
+
+            # GPS PART
+            min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
+            if f_vals[min_f_val_idx] < self.cur_f_val: # found a better value -> update point and tao
+                self.x = points[min_f_val_idx]
+                self.cur_f_val = f_vals[min_f_val_idx]
+                self.delta = self.delta / self.gamma
+
+                message += "| GPS sucess"
+
+                # update params and log
+                message += " | actual_k=" + str(actual_k)
+                self.k += 1
+                self.log_current(message=message)
+                return 0
+
+            # else continue with the MBTR stuff
             
             # points only consistend of random_D, so adding x_k as first element back in, also adding its' function
             points = torch.cat((self.x.unsqueeze(0), points)) # add x_k back in now p+1 points
@@ -149,6 +168,21 @@ class MBTR_k_fail:
             while (points.shape[0] < p_total+1 and points.shape[0] < self.opportunistic_cpu_exploitation_manual_point_limit) or not starting_iteration_done:
                 # print("POITNS AND LIMIT:", points.shape[0], p_total)
                 starting_iteration_done = True
+
+                # GPS PART
+                min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
+                if f_vals[min_f_val_idx] < self.cur_f_val: # found a better value -> update point and tao
+                    self.x = points[min_f_val_idx]
+                    self.cur_f_val = f_vals[min_f_val_idx]
+                    self.delta = self.delta / self.gamma
+
+                    message += "| GPS sucess"
+
+                    # update params and log
+                    message += " | actual_k=" + str(actual_k)
+                    self.k += 1
+                    self.log_current(message=message)
+                    return 0
 
                 # try to build model with what we have right no (no additional), and check
                 selected_order = 1
