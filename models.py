@@ -272,5 +272,58 @@ def get_random_D_max_norm_1(p, n):
         mask = norms < 1e-8
         vectors[mask] = (torch.rand(mask.sum(), n) - 0.5) * 2
         norms = torch.sqrt((vectors ** 2).sum(1))
-    vectors /= norms.max()          # ← divide whole batch by the single largest norm
+    vectors /= norms.max()          # divide whole batch by the single largest norm
     return vectors
+
+def random_householder_transform(A):
+    n = A.shape[1]
+
+    v = (torch.rand(n) - 0.5) * 2
+    while (v.norm() < 1e-8):
+        v = (torch.rand(n) - 0.5) * 2
+    v /= v.norm()
+
+    H = torch.eye(v.shape[0]) - 2 * torch.outer(v, v)
+    return A @ H
+
+def get_orthogonal_householder_D_max_norm_1(p, n):
+    double_eye = torch.stack([2*(-0.5 + i%2) * torch.eye(n)[i//2] for i in range(2*n)])
+    
+    num_double_eye = p // (2*n)
+    num_rest = p % (2*n)
+
+    D = []
+    for i in range(num_double_eye):
+        D.append(random_householder_transform(double_eye))
+    if num_rest != 0:
+        D.append(random_householder_transform(double_eye[:num_rest]))
+
+    D = torch.cat(D)
+
+    # for i in range(D.shape[0]):
+    #     D[i] *= max(1e-8, 1 - torch.rand(1)**6) # magic numbers 🤤
+
+    # norms = torch.sqrt((D ** 2).sum(1))
+    # D /= norms.max()
+
+    return D
+
+def get_orthogonal_Q_D_max_norm_q(p, n):
+    scale_factors = [1.0, 0.5, 2.0]
+    double_eye = torch.stack([2*(-0.5 + i%2) * torch.eye(n)[i//2] for i in range(2*n)])
+    
+    num_double_eye = p // (2*n)
+    num_rest = p % (2*n)
+
+    D = []
+    for i in range(num_double_eye):
+        Q, _ = torch.linalg.qr(torch.randn(n, n))
+        
+        D.append(scale_factors[i % len(scale_factors)] * double_eye @ Q)
+    if num_rest != 0:
+        Q, _ = torch.linalg.qr(torch.randn(n, n))
+        D.append(scale_factors[0] * double_eye[:num_rest] @ Q)
+
+    D = torch.cat(D)
+
+    return D

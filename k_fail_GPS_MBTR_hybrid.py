@@ -5,7 +5,7 @@ import torch
 # basically MBTR but before building a model check for decrease in sampled and if so update like gps
 
 class MBTR_GPS_hybrid_k_fail:
-    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12): # f_omega will not be used as no problems in the test set have contraints
+    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12, use_orthogonal=True): # f_omega will not be used as no problems in the test set have contraints
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.x = x
         self.cur_f_val = self.bb_k_fail_wrapper.p_reuse.evaluate(self.x) # using hashing (or not at step 0) get the current value of f
@@ -21,6 +21,7 @@ class MBTR_GPS_hybrid_k_fail:
 
         self.use_opportunistic_cpu_exploitation = use_opportunistic_cpu_exploitation
         self.opportunistic_cpu_exploitation_manual_point_limit = opportunistic_cpu_exploitation_manual_point_limit
+        self.use_orthogonal = use_orthogonal
 
         self.log_file_path = log_file_path # path to .txt where info should be stored
         open(log_file_path, "w").close() # clear log file
@@ -62,7 +63,7 @@ class MBTR_GPS_hybrid_k_fail:
             # 1.1 - build points to build the model
             # TODO: test for oversupply - though get model and sltn methods might take care of this already?
             # print("P:", p)
-            points = self.x + self.delta*models.get_random_D_max_norm_1(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus, self.n)) # NOTE: without x_k for now, will add later (so we don't loose it)
 
             # 1.2 get function value at points
             f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(points)
@@ -144,7 +145,7 @@ class MBTR_GPS_hybrid_k_fail:
             # not included
         
         else: # exploitation
-            additional_points = self.x + self.delta*models.get_random_D_max_norm_1(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            additional_points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus, self.n)) # NOTE: without x_k for now, will add later (so we don't loose it)
             additional_f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(additional_points)
             
             
@@ -209,7 +210,7 @@ class MBTR_GPS_hybrid_k_fail:
                 
                 # evaluate additional points: (num_cpus-(k+1)) new model points + (k+1) f_x_hat points so at least one makes it out
                 # if f_x_hat does not make it out due to underpredicted k, one full batch will be used up for f_x_hat
-                additional_points = self.x + self.delta*models.get_random_D_max_norm_1(num_cpus - (k_fail_predicted+1), self.n)
+                additional_points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus - (k_fail_predicted+1), self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus - (k_fail_predicted+1), self.n))
                 additional_points = torch.cat([additional_points, torch.ones((k_fail_predicted+1, self.n)) * x_hat]) # idxs [num_cpus-(k+1), num_cpus-1] are x_hat points
                 
                 additional_f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(additional_points)
