@@ -194,7 +194,10 @@ def get_quad_model_and_solution(raw_points, raw_func_values, raw_delta): # assum
         # step 2 - solve quadratic model and return point (in tensor form)
         rel_x_hat, f_tilda_x_hat = solve_relative_quad_in_ball(c, g, H, raw_delta)
         x_hat = torch.from_numpy(points[0]) + rel_x_hat
-        # raise Exception("some exception")
+        if torch.any(torch.isnan(x_hat)) or torch.any(torch.isinf(x_hat)):
+            print("WARNING: quad model produced nan/inf x_hat (ill-conditioned interpolation), x_hat = x_k")
+            x_hat = torch.from_numpy(points[0]).clone()
+            f_tilda_x_hat = f_tilda(x_hat)
         return x_hat, f_tilda_x_hat, g_t, f_tilda
     except Exception as e: # for some reason, either building or solving the model failed, just do linear
         print(f"WARNING: failed to build quad model for MBTR, doing linear: {e}")
@@ -249,7 +252,12 @@ def get_lin_model_and_solution(points, func_values, delta):
     
     # solve quadratic model and return point (in tensor form)
     # as mentioned, step in -g with size delta
-    x_hat = x_k - delta * g / torch.linalg.vector_norm(g)
+    g_norm = torch.linalg.vector_norm(g)
+    if g_norm < 1e-14:
+        print("WARNING: linear model gradient is zero (duplicate points or flat function values), x_hat = x_k")
+        x_hat = x_k.clone()
+    else:
+        x_hat = x_k - delta * g / g_norm
     f_tilda_x_hat = f_tilda(x_hat)
 
     return x_hat, f_tilda_x_hat, g, f_tilda
