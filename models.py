@@ -2,6 +2,7 @@ import cvxpy as cp
 import numpy as np
 import torch
 from scipy.optimize import minimize, brentq
+from scipy.special import gammainc
 
 def get_quad_params(points, func_values):
     # n = points.shape[1]
@@ -263,58 +264,25 @@ def get_lin_model_and_solution(points, func_values, delta):
     return x_hat, f_tilda_x_hat, g, f_tilda
 
 
-def get_random_unit_D(p, n): # p - number of points, returns p randomly directed unit vectors
-    vectors = (torch.rand(p, n) - 0.5) * 2  # uniform in [-1, 1]^n
-    norms = torch.sqrt((vectors ** 2).sum(1))
+def get_random_unit_D(p, n):
+    vectors = np.random.randn(p, n)
+    norms = np.sqrt((vectors ** 2).sum(1))
     while (norms < 1e-8).any():
         mask = norms < 1e-8
-        vectors[mask] = (torch.rand(mask.sum(), n) - 0.5) * 2
-        norms = torch.sqrt((vectors ** 2).sum(1))
-    vectors /= norms.unsqueeze(1)
-    return vectors
+        vectors[mask] = np.random.randn(mask.sum(), n)
+        norms = np.sqrt((vectors ** 2).sum(1))
+    vectors /= norms[:, None]
+    return torch.from_numpy(vectors)
 
 def get_random_D_max_norm_1(p, n):
-    vectors = (torch.rand(p, n) - 0.5) * 2
-    norms = torch.sqrt((vectors ** 2).sum(1))
-    while (norms < 1e-8).any():
-        mask = norms < 1e-8
-        vectors[mask] = (torch.rand(mask.sum(), n) - 0.5) * 2
-        norms = torch.sqrt((vectors ** 2).sum(1))
-    vectors /= norms.max()          # divide whole batch by the single largest norm
-    return vectors
-
-def random_householder_transform(A):
-    n = A.shape[1]
-
-    v = (torch.rand(n) - 0.5) * 2
-    while (v.norm() < 1e-8):
-        v = (torch.rand(n) - 0.5) * 2
-    v /= v.norm()
-
-    H = torch.eye(v.shape[0]) - 2 * torch.outer(v, v)
-    return A @ H
-
-def get_orthogonal_householder_D_max_norm_1(p, n):
-    double_eye = torch.stack([2*(-0.5 + i%2) * torch.eye(n)[i//2] for i in range(2*n)])
-    
-    num_double_eye = p // (2*n)
-    num_rest = p % (2*n)
-
-    D = []
-    for i in range(num_double_eye):
-        D.append(random_householder_transform(double_eye))
-    if num_rest != 0:
-        D.append(random_householder_transform(double_eye[:num_rest]))
-
-    D = torch.cat(D)
-
-    # for i in range(D.shape[0]):
-    #     D[i] *= max(1e-8, 1 - torch.rand(1)**6) # magic numbers 🤤
-
-    # norms = torch.sqrt((D ** 2).sum(1))
-    # D /= norms.max()
-
-    return D
+    X = np.random.randn(p, n)
+    s2 = np.sum(X * X, axis=1)
+    while (s2 < 1e-16).any():
+        mask = s2 < 1e-16
+        X[mask] = np.random.randn(mask.sum(), n)
+        s2 = np.sum(X * X, axis=1)
+    vectors = X * (np.power(gammainc(n/2, s2/2), 1/n) / np.sqrt(s2))[:, None]
+    return torch.from_numpy(vectors)
 
 def get_orthogonal_Q_D_max_norm_q(p, n):
     scale_factors = [1.0, 0.5, 2.0]
