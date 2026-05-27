@@ -272,7 +272,7 @@ def get_random_unit_D(p, n):
         vectors[mask] = np.random.randn(mask.sum(), n)
         norms = np.sqrt((vectors ** 2).sum(1))
     vectors /= norms[:, None]
-    return torch.from_numpy(vectors)
+    return torch.from_numpy(vectors).to(torch.float32)
 
 def get_random_D_max_norm_1(p, n):
     X = np.random.randn(p, n)
@@ -282,7 +282,7 @@ def get_random_D_max_norm_1(p, n):
         X[mask] = np.random.randn(mask.sum(), n)
         s2 = np.sum(X * X, axis=1)
     vectors = X * (np.power(gammainc(n/2, s2/2), 1/n) / np.sqrt(s2))[:, None]
-    return torch.from_numpy(vectors)
+    return torch.from_numpy(vectors).to(torch.float32)
 
 def get_orthogonal_Q_D_max_norm_q(p, n):
     scale_factors = [1.0, 0.5, 2.0]
