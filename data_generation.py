@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# NOTE: in MBTR and Hbrid you may see the message "FAILED TO GET X_HAT...", if you have k_assumed < k (actual) this is normal
+# the algorithm is not sending enough info to guarantee that it gets x_hat back from the failing cluster, so it will use up an additional batch
+# the signle batch is added to the total count of batch calls, so it is fair
+
 # In[1]:
 
 
