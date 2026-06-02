@@ -294,18 +294,18 @@ k_assumed_functions = {
 
 # GPS
 gps_delta = 1.0
-gps_tau = 0.5
+gps_tau = 0.3
 
 # MBTR ORDER 1
 mbtr_1_delta = 1.0
-mbtr_1_mu = 1.5
+mbtr_1_mu = 2.0
 mbtr_1_eta = 0.1
 mbtr_1_gamma = 0.5
 mbtr_1_eps_stop = 0.0
 
 # MBTR ORDER 2
 mbtr_2_delta = 1.0
-mbtr_2_mu = 1.5
+mbtr_2_mu = 2.0
 mbtr_2_eta = 0.1
 mbtr_2_gamma = 0.5
 mbtr_2_eps_stop = 0.0
