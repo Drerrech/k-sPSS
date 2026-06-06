@@ -5,7 +5,7 @@ import torch
 # basically MBTR but before building a model check for decrease in sampled and if so update like gps
 
 class MBTR_GPS_hybrid_k_fail:
-    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12, use_orthogonal=True): # f_omega will not be used as no problems in the test set have contraints
+    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12, use_orthogonal=True, use_reasoned_k_hat=True): # f_omega will not be used as no problems in the test set have contraints
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.x = x
         self.cur_f_val = self.bb_k_fail_wrapper.p_reuse.evaluate(self.x) # using hashing (or not at step 0) get the current value of f
@@ -22,6 +22,7 @@ class MBTR_GPS_hybrid_k_fail:
         self.use_opportunistic_cpu_exploitation = use_opportunistic_cpu_exploitation
         self.opportunistic_cpu_exploitation_manual_point_limit = opportunistic_cpu_exploitation_manual_point_limit
         self.use_orthogonal = use_orthogonal
+        self.use_reasoned_k_hat = use_reasoned_k_hat
 
         self.log_file_path = log_file_path # path to .txt where info should be stored
         open(log_file_path, "w").close() # clear log file
@@ -210,8 +211,18 @@ class MBTR_GPS_hybrid_k_fail:
                 
                 # evaluate additional points: (num_cpus-(k+1)) new model points + (k+1) f_x_hat points so at least one makes it out
                 # if f_x_hat does not make it out due to underpredicted k, one full batch will be used up for f_x_hat
-                additional_points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus - (k_fail_predicted+1), self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus - (k_fail_predicted+1), self.n))
-                additional_points = torch.cat([additional_points, torch.ones((k_fail_predicted+1, self.n)) * x_hat]) # idxs [num_cpus-(k+1), num_cpus-1] are x_hat points
+                k_hat = 0
+                if k_fail_predicted == 0:
+                    pass
+                elif k_fail_predicted <= 4:
+                    k_hat = 2
+                else:
+                    k_hat = 3
+                
+                num_x_hats = k_hat+1 if self.use_reasoned_k_hat else k_fail_predicted+1
+
+                additional_points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus - num_x_hats, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus - num_x_hats, self.n))
+                additional_points = torch.cat([additional_points, torch.ones((num_x_hats, self.n)) * x_hat]) # idxs [num_cpus-(k+1), num_cpus-1] are x_hat points
                 
                 additional_f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(additional_points)
                 self.prediction_software.add_actual_k(-1)
@@ -223,7 +234,7 @@ class MBTR_GPS_hybrid_k_fail:
                 found_x_hat = False
                 f_x_hat = None
                 for i, idx_completed in enumerate(completed):
-                    if idx_completed >= num_cpus - (k_fail_predicted+1): # point was x_hat
+                    if idx_completed >= num_cpus - num_x_hats: # point was x_hat
                         found_x_hat = True
                         f_x_hat = additional_f_vals[i].item()
                         break
@@ -240,7 +251,7 @@ class MBTR_GPS_hybrid_k_fail:
                 additional_model_points = [x_hat]
                 additional_model_f_vals = [torch.tensor(f_x_hat, dtype=torch.float64)]
                 for i, idx_completed in enumerate(completed):
-                    if idx_completed < num_cpus - (k_fail_predicted+1): # model point
+                    if idx_completed < num_cpus - num_x_hats: # model point
                         additional_model_points.append(additional_points[idx_completed])
                         additional_model_f_vals.append(additional_f_vals[i])
                 

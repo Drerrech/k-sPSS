@@ -122,13 +122,13 @@ class BB_k_fail_wrapper:
         if self.current_pattern_idx != self.pattern.shape[0]-1: # check if hasn't reached end of pattern    
             if self.time_based:
                 # update idx, skip if over the activation time
-                while self.pattern[self.current_pattern_idx + 1, 0] <= time.time - self.start_time():
+                while self.pattern[self.current_pattern_idx + 1, 0] <= time.time() - self.start_time():
                     self.current_pattern_idx += 1
             else: # batch_calls based
                 self.current_pattern_idx = min(self.batch_calls, self.pattern.shape[0]-1)
         
         if overwrite_k == -1:
-            k = self.pattern[self.current_pattern_idx][1]
+            k = self.pattern[self.current_pattern_idx][1].item()
         else:
             k = overwrite_k
         

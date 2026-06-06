@@ -218,7 +218,7 @@ class MBTR_k_fail:
                 additional_model_points = [x_hat]
                 additional_model_f_vals = [torch.tensor(f_x_hat, dtype=torch.float64)]
                 for i, idx_completed in enumerate(completed):
-                    if idx_completed < num_cpus - (k_fail_predicted+1): # model point
+                    if idx_completed < num_cpus - num_x_hats: # model point
                         additional_model_points.append(additional_points[idx_completed])
                         additional_model_f_vals.append(additional_f_vals[i])
                 
