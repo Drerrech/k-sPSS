@@ -64,17 +64,18 @@ class MBTR_GPS_hybrid_k_fail:
             # 1.1 - build points to build the model
             # TODO: test for oversupply - though get model and sltn methods might take care of this already?
             # print("P:", p)
-            points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus, self.n)) # NOTE: without x_k for now, will add later (so we don't loose it)
+            points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(p_total, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(p_total, self.n)) # NOTE: without x_k for now, will add later (so we don't loose it)
 
             # 1.2 get function value at points
             f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(points)
-            points = points[completed] # NOTE: important step
 
             self.prediction_software.add_actual_k(-1)
             # update counters NOTE: not all of them are update here (self.n_1_batch_calls)
             self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
             self.n_failed_function_calls += points.shape[0] - completed.shape[0]
             self.n_batch_calls += actual_batch_calls
+
+            points = points[completed] # NOTE: important step
 
             # GPS PART
             min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
@@ -249,7 +250,7 @@ class MBTR_GPS_hybrid_k_fail:
                 # get additional model points, will be cat-ed if needed in 2.b
                 # don't forget to add one x_hat and f_x_hat point
                 additional_model_points = [x_hat]
-                additional_model_f_vals = [torch.tensor(f_x_hat, dtype=torch.float64)]
+                additional_model_f_vals = [torch.tensor(f_x_hat)] # NOTE was float64
                 for i, idx_completed in enumerate(completed):
                     if idx_completed < num_cpus - num_x_hats: # model point
                         additional_model_points.append(additional_points[idx_completed])

@@ -122,7 +122,7 @@ class BB_k_fail_wrapper:
         if self.current_pattern_idx != self.pattern.shape[0]-1: # check if hasn't reached end of pattern    
             if self.time_based:
                 # update idx, skip if over the activation time
-                while self.pattern[self.current_pattern_idx + 1, 0] <= time.time() - self.start_time():
+                while self.pattern[self.current_pattern_idx + 1, 0] <= time.time() - self.start_time:
                     self.current_pattern_idx += 1
             else: # batch_calls based
                 self.current_pattern_idx = min(self.batch_calls, self.pattern.shape[0]-1)
@@ -135,6 +135,7 @@ class BB_k_fail_wrapper:
         
         # calculate, actual_batch_calls, how many it would take in a cluster
         actual_batch_calls = math.ceil(p / self.num_cpus)
+        self.batch_calls += actual_batch_calls
         
         # completed idxs
         completed = torch.tensor([], dtype=torch.int)
@@ -161,5 +162,5 @@ class BB_k_fail_wrapper:
         for i, point in enumerate(points[completed]):
             f_vals[i] = min(1e20, max(-1e20, self.p_reuse.evaluate(point, p_name=self.p_name)))
 
-        return (f_vals, completed, actual_batch_calls, k.item())
+        return (f_vals, completed, actual_batch_calls, k)
 
