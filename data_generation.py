@@ -156,49 +156,6 @@ for i in range(NUM_PROBLEMS):
     print(f"idx: {i} | {p.name} | n: {p.n}: {f(torch.from_numpy(p.x0))}")
 
 
-# In[5]:
-
-
-from collections import Counter 
-import matplotlib.pyplot as plt
-
-def count_problems_by_n(filepath: str) -> None:
-    counter = Counter()
-
-    with open(filepath) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split('|')
-            if len(parts) < 4:
-                continue
-            try:
-                n = int(parts[3].strip())
-                counter[n] += 1
-            except ValueError:
-                continue  # skip header or malformed lines
-
-    print(f"{'n':>6} {'num_problems':>12}")
-    print("-" * 20)
-    for n in sorted(counter):
-        print(f"{n:>6} {counter[n]:>12}")
-
-    ns = sorted(counter)
-    counts = [counter[n] for n in ns]
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.bar([str(n) for n in ns], counts, color="steelblue", edgecolor="white")
-    ax.set_xlabel("n")
-    ax.set_ylabel("number of problems")
-    ax.set_title("number of problems by n")
-    plt.xticks(rotation=45, ha="right")
-    plt.tight_layout()
-    plt.show()
-
-count_problems_by_n("alg_logs_data_run/cutest_problem_selection_hyperparam_tuning.txt")
-
-
 # # Algorithm Wrappers
 
 # In[6]:
@@ -379,7 +336,6 @@ def get_cluster_sizes(n):
 
 
 from tqdm import tqdm
-import math
 
 log_paths = [[] for _ in range(NUM_ALGS)]
 
