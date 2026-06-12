@@ -77,6 +77,11 @@ class MBTR_GPS_hybrid_k_fail:
 
             points = points[completed] # NOTE: important step
 
+            # points only consistend of random_D, so adding x_k as first element back in, also adding its' function
+            points = torch.cat((self.x.unsqueeze(0), points)) # add x_k back in now p+1 points
+            # print(self.cur_f_val)
+            f_vals = torch.cat((torch.tensor(self.cur_f_val).unsqueeze(0), f_vals)) # add f(x_k)
+
             # GPS PART
             min_f_val_idx = torch.argmin(f_vals) # note, this is an idx of returned values, not an index of P
             if f_vals[min_f_val_idx] < self.cur_f_val: # found a better value -> update point and tao
@@ -93,11 +98,6 @@ class MBTR_GPS_hybrid_k_fail:
                 return 0
 
             # else continue with the MBTR stuff
-            
-            # points only consistend of random_D, so adding x_k as first element back in, also adding its' function
-            points = torch.cat((self.x.unsqueeze(0), points)) # add x_k back in now p+1 points
-            # print(self.cur_f_val)
-            f_vals = torch.cat((torch.tensor(self.cur_f_val).unsqueeze(0), f_vals)) # add f(x_k)
             
             selected_order = 1
             if self.preferred_model_order == 2 and points.shape[0] > self.n + k_fail_predicted: # capable of a poor quad model (n+1 + k - linear, (n+1)(n+2)/2 + k - quad)
