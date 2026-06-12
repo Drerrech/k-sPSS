@@ -19083,3 +19083,6 @@ EXPFIT AT [5.36857361533505, 8.706902691541835] f(x) = 2.355803555136579e+20
 DENSCHNC AT [39.176931381225586, -8.312206268310547] f(x) = 1.4456437059939795e+33
 DENSCHNC AT [24.73137855529785, -4.848457336425781] f(x) = 4.100279898307352e+20
 DIAMON3DLS AT [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan] f(x) = nan
+HIMMELBB AT [-19.780014526844024, 9.876465559005737] f(x) = 9.679648644431187e+22
+EXPFIT AT [6.81828311085701, 9.755533009767532] f(x) = 7.153856143482829e+22
+EXPFIT AT [7.0958981812000275, 21.961014539003372] f(x) = 2.4533488313986053e+49
