@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[1]:
 
 
+# run only if CUTEST is not properly installed (try without running first and see if you get an error)
 import os
 os.environ["MASTSIF"] = "/home/karima04/cutest/mastsif/"
+
+
+# In[2]:
+
 
 import k_fail_GPS
 import k_fail_MBTR
@@ -15,9 +20,10 @@ import k_fail_prediction
 
 import torch
 
+
 # # Defining the set
 
-# In[2]:
+# In[10]:
 
 
 alg_names = [
@@ -28,65 +34,47 @@ alg_names = [
     "GPS-opp-pessimistic",
     "GPS-comp-pessimistic",
 
-    "MBTR-1-opp-orth-optimistic",
-    "MBTR-1-opp-purerand-optimistic",
-    "MBTR-1-comp-orth-optimistic",
     "MBTR-1-comp-purerand-optimistic",
-    "MBTR-2-opp-orth-optimistic",
-    "MBTR-2-opp-purerand-optimistic",
-    "MBTR-2-comp-orth-optimistic",
-    "MBTR-2-comp-purerand-optimistic",
-    "MBTR-1-opp-orth-realistic",
-    "MBTR-1-opp-purerand-realistic",
-    "MBTR-1-comp-orth-realistic",
+    "MBTR-1-comp-orth-optimistic",
+    "MBTR-1-opp-purerand-optimistic",
+    "MBTR-1-opp-orth-optimistic",
     "MBTR-1-comp-purerand-realistic",
-    "MBTR-2-opp-orth-realistic",
-    "MBTR-2-opp-purerand-realistic",
-    "MBTR-2-comp-orth-realistic",
-    "MBTR-2-comp-purerand-realistic",
-    "MBTR-1-opp-orth-pessimistic",
-    "MBTR-1-opp-purerand-pessimistic",
-    "MBTR-1-comp-orth-pessimistic",
+    "MBTR-1-comp-orth-realistic",
+    "MBTR-1-opp-purerand-realistic",
+    "MBTR-1-opp-orth-realistic",
     "MBTR-1-comp-purerand-pessimistic",
-    "MBTR-2-opp-orth-pessimistic",
-    "MBTR-2-opp-purerand-pessimistic",
-    "MBTR-2-comp-orth-pessimistic",
-    "MBTR-2-comp-purerand-pessimistic",
+    "MBTR-1-comp-orth-pessimistic",
+    "MBTR-1-opp-purerand-pessimistic",
+    "MBTR-1-opp-orth-pessimistic",
 
-    "Hybrid-1-opp-orth-optimistic",
-    "Hybrid-1-opp-purerand-optimistic",
-    "Hybrid-1-comp-orth-optimistic",
     "Hybrid-1-comp-purerand-optimistic",
-    "Hybrid-2-opp-orth-optimistic",
-    "Hybrid-2-opp-purerand-optimistic",
-    "Hybrid-2-comp-orth-optimistic",
-    "Hybrid-2-comp-purerand-optimistic",
-    "Hybrid-1-opp-orth-realistic",
-    "Hybrid-1-opp-purerand-realistic",
-    "Hybrid-1-comp-orth-realistic",
+    "Hybrid-1-comp-orth-optimistic",
+    "Hybrid-1-comp-gps-optimistic",
+    "Hybrid-1-opp-purerand-optimistic",
+    "Hybrid-1-opp-orth-optimistic",
+    "Hybrid-1-opp-gps-optimistic",
     "Hybrid-1-comp-purerand-realistic",
-    "Hybrid-2-opp-orth-realistic",
-    "Hybrid-2-opp-purerand-realistic",
-    "Hybrid-2-comp-orth-realistic",
-    "Hybrid-2-comp-purerand-realistic",
-    "Hybrid-1-opp-orth-pessimistic",
-    "Hybrid-1-opp-purerand-pessimistic",
-    "Hybrid-1-comp-orth-pessimistic",
+    "Hybrid-1-comp-orth-realistic",
+    "Hybrid-1-comp-gps-realistic",
+    "Hybrid-1-opp-purerand-realistic",
+    "Hybrid-1-opp-orth-realistic",
+    "Hybrid-1-opp-gps-realistic",
     "Hybrid-1-comp-purerand-pessimistic",
-    "Hybrid-2-opp-orth-pessimistic",
-    "Hybrid-2-opp-purerand-pessimistic",
-    "Hybrid-2-comp-orth-pessimistic",
-    "Hybrid-2-comp-purerand-pessimistic",
+    "Hybrid-1-comp-orth-pessimistic",
+    "Hybrid-1-comp-gps-pessimistic",
+    "Hybrid-1-opp-purerand-pessimistic",
+    "Hybrid-1-opp-orth-pessimistic",
+    "Hybrid-1-opp-gps-pessimistic",
 ]
 
 NUM_ALGS = len(alg_names)
 
-NUM_PROBLEMS = 32
+NUM_PROBLEMS = 161 - 11 - 0 # 11 total from 40-subset (3 more problems were dropped), ? total from rest
 
 
 # # Test Set
 
-# In[3]:
+# In[11]:
 
 
 cutest_wrapper = BB_wrapper.BB_cutest_collection(write_to_file="alg_logs_data_run/cutest_problem_selection_hyperparam_tuning.txt", max_dim=100, cap_n_problems=NUM_PROBLEMS,
@@ -116,8 +104,8 @@ cutest_wrapper = BB_wrapper.BB_cutest_collection(write_to_file="alg_logs_data_ru
     "MUONSINELS",
     "DENSCHNE", # abnormal
     "DMN15333LS",
-    "DIAMON3DLS",
-    "EXPFIT", # abnormal
+    # "DIAMON3DLS", # abnormal during data run
+    # "EXPFIT", # abnormal - during data run too
     "HELIX",
     "LSC2LS",
     "KOWOSB",
@@ -130,8 +118,132 @@ cutest_wrapper = BB_wrapper.BB_cutest_collection(write_to_file="alg_logs_data_ru
     "CHWIRUT1LS", # abnormal
     "COOLHANSLS",
     "HAHN1LS",
-    "HIMMELBB", # abnormal
-                ])
+    # "HIMMELBB", # abnormal - during data run too
+
+    # rest of set
+    "JUDGE",
+    "HYDCAR6LS",
+    "MGH10SLS",
+    "BARD",
+    "POWELLBSLS",
+    "RAT43LS",
+    "HUMPS",
+    "ROSENBR",
+    "MISRA1ALS",
+    "BOXBODLS",
+    "METHANB8LS",
+    "STREG",
+    "DEVGLA1",
+    "MGH17SLS",
+    "EGGCRATE",
+    "HAIRY",
+    "DJTL",
+    "HATFLDFL",
+    "HIMMELBF",
+    "LRCOVTYPE",
+    "LUKSAN17LS",
+    "CERI651BLS",
+    "BEALE",
+    "HEART8LS",
+    "CHNROSNB",
+    "STRTCHDV",
+    "WATSON",
+    "LUKSAN16LS",
+    "SINEVAL",
+    "TRIGON2",
+    "CHNRSNBM",
+    "DMN37143LS",
+    "LUKSAN15LS",
+    "LOGHAIRY",
+    "ERRINROS",
+    "BA-L1SPLS",
+    "VESUVIOLS",
+    "PARKCH",
+    "HIELOW",
+    "BRKMCC",
+    "MISRA1BLS",
+    "BROWNBS",
+    "HIMMELBH",
+    "HIMMELBCLS",
+    "WAYSEA1",
+    "HIMMELBG",
+    "POWELLSQLS",
+    "MGH17LS",
+    "MARATOSB",
+    "EXP2",
+    "RECIPELS",
+    "FBRAIN3LS",
+    "MISRA1DLS",
+    "VIBRBEAM",
+    "ECKERLE4LS",
+    "MANCINO",
+    "SNAIL",
+    "OSBORNEA",
+    "GROWTHLS",
+    "THURBERLS",
+    "POWERSUM",
+    "DIXMAANA1",
+    "LUKSAN11LS",
+    "GAUSSIAN",
+    "LUKSAN14LS",
+    "SISSER2",
+    "PALMER6C",
+    "BENNETT5LS",
+    "DEVGLA2",
+    "ENSOLS",
+    "VESUVIOULS",
+    "HATFLDE",
+    "HYDC20LS",
+    "CERI651ALS",
+    "STRATEC",
+    "DMN15332LS",
+    "CLIFF",
+    "CLUSTERLS",
+    "ENGVAL2",
+    "METHANL8LS",
+    "ROSENBRTU",
+    "KIRBY2LS",
+    "PRICE3",
+    "TOINTGOR",
+    "JENSMP",
+    "PRICE4",
+    "CERI651ELS",
+    "WAYSEA2",
+    "DIAMON2DLS",
+    "HEART6LS",
+    "ALLINITU",
+    "RAT42LS",
+    "YATP2LS",
+    "LUKSAN13LS",
+    "CERI651CLS",
+    "ROSZMAN1LS",
+    "MEXHAT",
+    "HATFLDD",
+    "SSI",
+    "HATFLDFLS",
+    "TOINTPSP",
+    "VESUVIALS",
+    "MISRA1CLS",
+    "OSBORNEB",
+    "LANCZOS2LS",
+    "MEYER3",
+    "DMN37142LS",
+    "GULF",
+    "LSC1LS",
+    "CERI651DLS",
+    "LUKSAN22LS",
+    "TRIGON1",
+    "AKIVA",
+    "ERRINRSM",
+    "DMN15102LS",
+    "HATFLDGLS",
+    "BIGGS6",
+    "ELATVIDU",
+    "LUKSAN12LS",
+    "DMN15103LS",
+    "BROWNDEN",
+    ]
+)
 
 # 8 problems that break even with good params
 # problem |         max norm |                 f(x) | point
@@ -146,7 +258,7 @@ cutest_wrapper = BB_wrapper.BB_cutest_collection(write_to_file="alg_logs_data_ru
 #         NELSONLS |           6.3727 |        2.832579e+284 | [4.01845096051693, 4.806541366672516, -1.1663485860824585]
 
 
-# In[4]:
+# In[12]:
 
 
 # evaluating n problem functions
@@ -155,10 +267,9 @@ for i in range(NUM_PROBLEMS):
     f = cutest_wrapper.problem_functions[i]
     print(f"idx: {i} | {p.name} | n: {p.n}: {f(torch.from_numpy(p.x0))}")
 
-
 # # Algorithm Wrappers
 
-# In[6]:
+# In[7]:
 
 
 import time
@@ -183,7 +294,7 @@ def read_last_fx(filename):
     return last_fx
 
 
-# In[ ]:
+# In[8]:
 
 
 def gps_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, tao, n_batch_calls_limit, opportunistic=True):
@@ -208,11 +319,11 @@ def gps_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, t
     return log_file_path
 
 
-# In[ ]:
+# In[9]:
 
 
 def mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, mu, eta, gamma, eps_stop, preferred_model_order, n_batch_calls_limit, opportunistic_cpu_exploitation_manual_point_limit, opportunistic=True, orthogonal=True, use_reasoned_k_hat=True):
-    log_file_path = f"alg_logs_data_run/MBTR/data_generation_{cutest_wrapper.problems[problem_idx].name}_cluster{cluster_size}_k{k}_kassumed{k_assumed}_delta{delta:.2f}_mu{mu:.2f}_eta{eta:.2f}_gamma{gamma:.2f}_epsstop{eps_stop:.2f}_preford{preferred_model_order}_batchlim{n_batch_calls_limit}_oppcpulim{opportunistic_cpu_exploitation_manual_point_limit}_{'opp' if opportunistic else 'com'}_{'orth' if orthogonal else 'rand'}_{'smallhat' if use_reasoned_k_hat else 'safehat'}_mbtr.txt"
+    log_file_path = f"alg_logs_data_run/MBTR/data_generation_{cutest_wrapper.problems[problem_idx].name}_cluster{cluster_size}_k{k}_kassumed{k_assumed}_delta{delta:.2f}_mu{mu:.2f}_eta{eta:.2f}_gamma{gamma:.2f}_epsstop{eps_stop:.2f}_preford{preferred_model_order}_batchlim{n_batch_calls_limit}_oppcpulim{opportunistic_cpu_exploitation_manual_point_limit}_{'opp' if opportunistic else 'com'}_{"orth" if orthogonal else "purerand"}_{'smallhat' if use_reasoned_k_hat else 'safehat'}_mbtr.txt"
     if os.path.exists(log_file_path):
         return log_file_path
 
@@ -239,11 +350,11 @@ def mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, 
     return log_file_path
 
 
-# In[ ]:
+# In[10]:
 
 
-def mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, mu, eta, gamma, eps_stop, preferred_model_order, n_batch_calls_limit, opportunistic_cpu_exploitation_manual_point_limit, opportunistic=True, orthogonal=True, use_reasoned_k_hat=True):
-    log_file_path = f"alg_logs_data_run/MBTR_GPS_hybrid/data_generation_{cutest_wrapper.problems[problem_idx].name}_cluster{cluster_size}_k{k}_kassumed{k_assumed}_delta{delta:.2f}_mu{mu:.2f}_eta{eta:.2f}_gamma{gamma:.2f}_epsstop{eps_stop:.2f}_preford{preferred_model_order}_batchlim{n_batch_calls_limit}_oppcpulim{opportunistic_cpu_exploitation_manual_point_limit}_{'opp' if opportunistic else 'com'}_{'orth' if orthogonal else 'rand'}_{'smallhat' if use_reasoned_k_hat else 'safehat'}_hybrid.txt"
+def mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, mu, eta, gamma, eps_stop, preferred_model_order, n_batch_calls_limit, opportunistic_cpu_exploitation_manual_point_limit, opportunistic=True, set_type="purerand", use_reasoned_k_hat=True):
+    log_file_path = f"alg_logs_data_run/MBTR_GPS_hybrid/data_generation_{cutest_wrapper.problems[problem_idx].name}_cluster{cluster_size}_k{k}_kassumed{k_assumed}_delta{delta:.2f}_mu{mu:.2f}_eta{eta:.2f}_gamma{gamma:.2f}_epsstop{eps_stop:.2f}_preford{preferred_model_order}_batchlim{n_batch_calls_limit}_oppcpulim{opportunistic_cpu_exploitation_manual_point_limit}_{'opp' if opportunistic else 'com'}_{set_type}_{'smallhat' if use_reasoned_k_hat else 'safehat'}_hybrid.txt"
     if os.path.exists(log_file_path):
         return log_file_path
 
@@ -253,7 +364,7 @@ def mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assum
                                   preferred_model_order=preferred_model_order,
                                   opportunistic_cpu_exploitation_manual_point_limit=opportunistic_cpu_exploitation_manual_point_limit,
                                   use_opportunistic_cpu_exploitation=opportunistic,
-                                  use_orthogonal=orthogonal,
+                                  set_type=set_type,
                                   use_reasoned_k_hat=use_reasoned_k_hat)
 
     alg.log_current()
@@ -272,7 +383,7 @@ def mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assum
 
 # # GPS and MBTR hyperparameters and cluster settings
 
-# In[10]:
+# In[11]:
 
 
 dim_to_cluster_sizes = { # upper inclusive : [possible ranges]
@@ -320,7 +431,7 @@ mbtr_model_function_lim = lambda n: 6*n
 
 # # Run the algorithms
 
-# In[11]:
+# In[12]:
 
 
 def get_cluster_sizes(n):
@@ -331,16 +442,16 @@ def get_cluster_sizes(n):
     raise Exception("did not find cluster size range for supplied dim")
 
 
-# In[12]:
-
+# In[13]:
 
 
 from tqdm import tqdm
+import math
 
 log_paths = [[] for _ in range(NUM_ALGS)]
 
 
-# In[13]:
+# In[14]:
 
 
 current_path_idx = 0
@@ -348,7 +459,7 @@ current_path_idx = 0
 
 # GPS
 
-# In[14]:
+# In[15]:
 
 
 gps_combination_count = 0 
@@ -380,7 +491,7 @@ def gps_all_combinations(path_idx, k_assumed_f, opportunistic):
     pbar.close()
 
 
-# In[15]:
+# In[16]:
 
 
 for k_assumed_f in k_assumed_functions.values():
@@ -394,7 +505,7 @@ for k_assumed_f in k_assumed_functions.values():
 
 # MBTR
 
-# In[16]:
+# In[17]:
 
 
 mbtr_combination_count = 0
@@ -408,6 +519,7 @@ for problem_idx in range(NUM_PROBLEMS):
 
 def mbtr_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogonal, use_reasoned_k_hat):
     pbar = tqdm(total=mbtr_combination_count)
+    pbar.set_description(f"order{order}_{"opp" if opportunistic else "comp"}_{"orth" if orthogonal else "purerand"}_{"smallhat" if use_reasoned_k_hat else "bighat"}")
 
     for problem_idx in range(NUM_PROBLEMS):
         problem_n = cutest_wrapper.problems[problem_idx].n
@@ -429,34 +541,22 @@ def mbtr_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogona
     pbar.close()
 
 
-# In[ ]:
+# In[18]:
 
 
 for k_assumed_f in k_assumed_functions.values():
     # all use small hat
-    # MBTR - order 1 opportunistic orthogonal
-    mbtr_all_combinations(current_path_idx, k_assumed_f, 1, True, True, use_reasoned_k_hat=True)
-    # MBTR - order 1 opportunistic pure random
-    mbtr_all_combinations(current_path_idx+1, k_assumed_f, 1, True, False, use_reasoned_k_hat=True)
-    # MBTR - order 1 complete orthogonal
-    mbtr_all_combinations(current_path_idx+2, k_assumed_f, 1, False, True, use_reasoned_k_hat=True)
-    # MBTR - order 1 complete pure random
-    mbtr_all_combinations(current_path_idx+3, k_assumed_f, 1, False, False, use_reasoned_k_hat=True)
-    # MBTR - order 2 opportunistic orthogonal
-    mbtr_all_combinations(current_path_idx+4, k_assumed_f, 2, True, True, use_reasoned_k_hat=True)
-    # MBTR - order 2 opportunistic pure random
-    mbtr_all_combinations(current_path_idx+5, k_assumed_f, 2, True, False, use_reasoned_k_hat=True)
-    # MBTR - order 2 complete orthogonal
-    mbtr_all_combinations(current_path_idx+6, k_assumed_f, 2, False, True, use_reasoned_k_hat=True)
-    # MBTR - order 2 complete pure random
-    mbtr_all_combinations(current_path_idx+7, k_assumed_f, 2, False, False, use_reasoned_k_hat=True)
+    mbtr_all_combinations(current_path_idx, k_assumed_f, 1, False, False, use_reasoned_k_hat=True)
+    mbtr_all_combinations(current_path_idx+1, k_assumed_f, 1, False, True, use_reasoned_k_hat=True)
+    mbtr_all_combinations(current_path_idx+2, k_assumed_f, 1, True, False, use_reasoned_k_hat=True)
+    mbtr_all_combinations(current_path_idx+3, k_assumed_f, 1, True, True, use_reasoned_k_hat=True)
 
-    current_path_idx += 8
+    current_path_idx += 4
 
 
 # Hybrid
 
-# In[ ]:
+# In[19]:
 
 
 hybrid_combination_count = 0
@@ -468,8 +568,9 @@ for problem_idx in range(NUM_PROBLEMS):
         for k in ks:
             hybrid_combination_count += 1
 
-def hybrid_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogonal, use_reasoned_k_hat):
+def hybrid_all_combinations(path_idx, k_assumed_f, order, opportunistic, set_type, use_reasoned_k_hat):
     pbar = tqdm(total=hybrid_combination_count)
+    pbar.set_description(f"order{order}_{"opp" if opportunistic else "comp"}_{set_type}_{"smallhat" if use_reasoned_k_hat else "bighat"}")
 
     for problem_idx in range(NUM_PROBLEMS):
         problem_n = cutest_wrapper.problems[problem_idx].n
@@ -481,9 +582,9 @@ def hybrid_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogo
 
             for k in ks:
                 if order == 1:
-                    log_paths[path_idx].append(mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_1_delta, mbtr_1_mu, mbtr_1_eta, mbtr_1_gamma, mbtr_1_eps_stop, 1, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal, use_reasoned_k_hat))
+                    log_paths[path_idx].append(mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_1_delta, mbtr_1_mu, mbtr_1_eta, mbtr_1_gamma, mbtr_1_eps_stop, 1, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, set_type, use_reasoned_k_hat))
                 else:
-                    log_paths[path_idx].append(mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_2_delta, mbtr_2_mu, mbtr_2_eta, mbtr_2_gamma, mbtr_2_eps_stop, 2, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal, use_reasoned_k_hat))
+                    log_paths[path_idx].append(mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_2_delta, mbtr_2_mu, mbtr_2_eta, mbtr_2_gamma, mbtr_2_eps_stop, 2, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, set_type, use_reasoned_k_hat))
 
 
                 pbar.update(1)
@@ -491,27 +592,15 @@ def hybrid_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogo
     pbar.close()
 
 
-# In[ ]:
-
+# In[20]:
 
 for k_assumed_f in k_assumed_functions.values():
     # all use small hat
-    # Hybrid - order 1 opportunistic orthogonal
-    hybrid_all_combinations(current_path_idx, k_assumed_f, 1, True, True, use_reasoned_k_hat=True)
-    # Hybrid - order 1 opportunistic pure random
-    hybrid_all_combinations(current_path_idx+1, k_assumed_f, 1, True, False, use_reasoned_k_hat=True)
-    # Hybrid - order 1 complete orthogonal
-    hybrid_all_combinations(current_path_idx+2, k_assumed_f, 1, False, True, use_reasoned_k_hat=True)
-    # Hybrid - order 1 complete pure random
-    hybrid_all_combinations(current_path_idx+3, k_assumed_f, 1, False, False, use_reasoned_k_hat=True)
-    # Hybrid - order 2 opportunistic orthogonal
-    hybrid_all_combinations(current_path_idx+4, k_assumed_f, 2, True, True, use_reasoned_k_hat=True)
-    # Hybrid - order 2 opportunistic pure random
-    hybrid_all_combinations(current_path_idx+5, k_assumed_f, 2, True, False, use_reasoned_k_hat=True)
-    # Hybrid - order 2 complete orthogonal
-    hybrid_all_combinations(current_path_idx+6, k_assumed_f, 2, False, True, use_reasoned_k_hat=True)
-    # Hybrid - order 2 complete pure random
-    hybrid_all_combinations(current_path_idx+7, k_assumed_f, 2, False, False, use_reasoned_k_hat=True)
+    hybrid_all_combinations(current_path_idx, k_assumed_f, 1, False, "purerand", use_reasoned_k_hat=True)
+    hybrid_all_combinations(current_path_idx+1, k_assumed_f, 1, False, "orth", use_reasoned_k_hat=True)
+    hybrid_all_combinations(current_path_idx+2, k_assumed_f, 1, False, "gps", use_reasoned_k_hat=True)
+    hybrid_all_combinations(current_path_idx+3, k_assumed_f, 1, True, "purerand", use_reasoned_k_hat=True)
+    hybrid_all_combinations(current_path_idx+4, k_assumed_f, 1, True, "orth", use_reasoned_k_hat=True)
+    hybrid_all_combinations(current_path_idx+5, k_assumed_f, 1, True, "gps", use_reasoned_k_hat=True)
 
-    current_path_idx += 8
-
+    current_path_idx += 6

@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# NOTE: in MBTR and Hbrid you may see the message "FAILED TO GET X_HAT...", if you have k_assumed < k (actual) this is normal
-# the algorithm is not sending enough info to guarantee that it gets x_hat back from the failing cluster, so it will use up an additional batch
-# the signle batch is added to the total count of batch calls, so it is fair
-
-# In[1]:
+# In[2]:
 
 
 import os
@@ -19,8 +15,9 @@ import k_fail_prediction
 
 import torch
 
+# # Defining the set
 
-# In[ ]:
+# In[2]:
 
 
 alg_names = [
@@ -159,7 +156,6 @@ for i in range(NUM_PROBLEMS):
     print(f"idx: {i} | {p.name} | n: {p.n}: {f(torch.from_numpy(p.x0))}")
 
 
-
 # # Algorithm Wrappers
 
 # In[6]:
@@ -168,7 +164,7 @@ for i in range(NUM_PROBLEMS):
 import time
 import os
 
-TIME_LIMIT_S = 600.0
+TIME_LIMIT_S = 3600.0
 
 def read_last_fx(filename):
     last_fx = None
@@ -187,7 +183,7 @@ def read_last_fx(filename):
     return last_fx
 
 
-# In[7]:
+# In[ ]:
 
 
 def gps_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, tao, n_batch_calls_limit, opportunistic=True):
@@ -195,8 +191,8 @@ def gps_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, t
     if os.path.exists(log_file_path):
         return log_file_path
 
-    GPS_expl_k_fail_wrapper = BB_wrapper.BB_k_fail_wrapper(cutest_wrapper.problem_functions[problem_idx], k_assumed*torch.ones((4096, 2), dtype=torch.int16), cluster_size)
-    alg = k_fail_GPS.GPS_k_fail(torch.from_numpy(cutest_wrapper.problems[problem_idx].x0), GPS_expl_k_fail_wrapper, delta, tao, prediction_software=k_fail_prediction.constant_prediction_software(k), log_file_path=log_file_path, use_opportunistic_cpu_exploitation=opportunistic) # are true by default
+    GPS_expl_k_fail_wrapper = BB_wrapper.BB_k_fail_wrapper(cutest_wrapper.problem_functions[problem_idx], k*torch.ones((4096, 2), dtype=torch.int16), cluster_size)
+    alg = k_fail_GPS.GPS_k_fail(torch.from_numpy(cutest_wrapper.problems[problem_idx].x0), GPS_expl_k_fail_wrapper, delta, tao, prediction_software=k_fail_prediction.constant_prediction_software(k_assumed), log_file_path=log_file_path, use_opportunistic_cpu_exploitation=opportunistic) # are true by default
 
     alg.log_current(message=f"k={k}")
 
@@ -212,21 +208,22 @@ def gps_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, t
     return log_file_path
 
 
-# In[8]:
+# In[ ]:
 
 
-def mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, mu, eta, gamma, eps_stop, preferred_model_order, n_batch_calls_limit, opportunistic_cpu_exploitation_manual_point_limit, opportunistic=True, orthogonal=True):
-    log_file_path = f"alg_logs_data_run/MBTR/data_generation_{cutest_wrapper.problems[problem_idx].name}_cluster{cluster_size}_k{k}_kassumed{k_assumed}_delta{delta:.2f}_mu{mu:.2f}_eta{eta:.2f}_gamma{gamma:.2f}_epsstop{eps_stop:.2f}_preford{preferred_model_order}_batchlim{n_batch_calls_limit}_oppcpulim{opportunistic_cpu_exploitation_manual_point_limit}_{'opp' if opportunistic else 'com'}_{'orth' if orthogonal else 'rand'}_mbtr.txt"
+def mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, mu, eta, gamma, eps_stop, preferred_model_order, n_batch_calls_limit, opportunistic_cpu_exploitation_manual_point_limit, opportunistic=True, orthogonal=True, use_reasoned_k_hat=True):
+    log_file_path = f"alg_logs_data_run/MBTR/data_generation_{cutest_wrapper.problems[problem_idx].name}_cluster{cluster_size}_k{k}_kassumed{k_assumed}_delta{delta:.2f}_mu{mu:.2f}_eta{eta:.2f}_gamma{gamma:.2f}_epsstop{eps_stop:.2f}_preford{preferred_model_order}_batchlim{n_batch_calls_limit}_oppcpulim{opportunistic_cpu_exploitation_manual_point_limit}_{'opp' if opportunistic else 'com'}_{'orth' if orthogonal else 'rand'}_{'smallhat' if use_reasoned_k_hat else 'safehat'}_mbtr.txt"
     if os.path.exists(log_file_path):
         return log_file_path
 
-    MBTR_expl_k_fail_wrapper = BB_wrapper.BB_k_fail_wrapper(cutest_wrapper.problem_functions[problem_idx], k_assumed*torch.ones((1024, 2), dtype=torch.int16), cluster_size)
+    MBTR_expl_k_fail_wrapper = BB_wrapper.BB_k_fail_wrapper(cutest_wrapper.problem_functions[problem_idx], k*torch.ones((1024, 2), dtype=torch.int16), cluster_size)
 
-    alg = k_fail_MBTR.MBTR_k_fail(torch.from_numpy(cutest_wrapper.problems[problem_idx].x0), MBTR_expl_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software=k_fail_prediction.constant_prediction_software(k), log_file_path=log_file_path,
+    alg = k_fail_MBTR.MBTR_k_fail(torch.from_numpy(cutest_wrapper.problems[problem_idx].x0), MBTR_expl_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software=k_fail_prediction.constant_prediction_software(k_assumed), log_file_path=log_file_path,
                                   preferred_model_order=preferred_model_order,
                                   opportunistic_cpu_exploitation_manual_point_limit=opportunistic_cpu_exploitation_manual_point_limit,
                                   use_opportunistic_cpu_exploitation=opportunistic,
-                                  use_orthogonal=orthogonal)
+                                  use_orthogonal=orthogonal,
+                                  use_reasoned_k_hat=use_reasoned_k_hat)
 
     alg.log_current()
 
@@ -245,18 +242,19 @@ def mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, 
 # In[ ]:
 
 
-def mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, mu, eta, gamma, eps_stop, preferred_model_order, n_batch_calls_limit, opportunistic_cpu_exploitation_manual_point_limit, opportunistic=True, orthogonal=True):
-    log_file_path = f"alg_logs_data_run/MBTR_GPS_hybrid/data_generation_{cutest_wrapper.problems[problem_idx].name}_cluster{cluster_size}_k{k}_kassumed{k_assumed}_delta{delta:.2f}_mu{mu:.2f}_eta{eta:.2f}_gamma{gamma:.2f}_epsstop{eps_stop:.2f}_preford{preferred_model_order}_batchlim{n_batch_calls_limit}_oppcpulim{opportunistic_cpu_exploitation_manual_point_limit}_{'opp' if opportunistic else 'com'}_{'orth' if orthogonal else 'rand'}_hybrid.txt"
+def mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed, delta, mu, eta, gamma, eps_stop, preferred_model_order, n_batch_calls_limit, opportunistic_cpu_exploitation_manual_point_limit, opportunistic=True, orthogonal=True, use_reasoned_k_hat=True):
+    log_file_path = f"alg_logs_data_run/MBTR_GPS_hybrid/data_generation_{cutest_wrapper.problems[problem_idx].name}_cluster{cluster_size}_k{k}_kassumed{k_assumed}_delta{delta:.2f}_mu{mu:.2f}_eta{eta:.2f}_gamma{gamma:.2f}_epsstop{eps_stop:.2f}_preford{preferred_model_order}_batchlim{n_batch_calls_limit}_oppcpulim{opportunistic_cpu_exploitation_manual_point_limit}_{'opp' if opportunistic else 'com'}_{'orth' if orthogonal else 'rand'}_{'smallhat' if use_reasoned_k_hat else 'safehat'}_hybrid.txt"
     if os.path.exists(log_file_path):
         return log_file_path
 
-    MBTR_expl_k_fail_wrapper = BB_wrapper.BB_k_fail_wrapper(cutest_wrapper.problem_functions[problem_idx], k_assumed*torch.ones((1024, 2), dtype=torch.int16), cluster_size)
+    MBTR_expl_k_fail_wrapper = BB_wrapper.BB_k_fail_wrapper(cutest_wrapper.problem_functions[problem_idx], k*torch.ones((1024, 2), dtype=torch.int16), cluster_size)
 
-    alg = k_fail_GPS_MBTR_hybrid.MBTR_GPS_hybrid_k_fail(torch.from_numpy(cutest_wrapper.problems[problem_idx].x0), MBTR_expl_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software=k_fail_prediction.constant_prediction_software(k), log_file_path=log_file_path,
+    alg = k_fail_GPS_MBTR_hybrid.MBTR_GPS_hybrid_k_fail(torch.from_numpy(cutest_wrapper.problems[problem_idx].x0), MBTR_expl_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software=k_fail_prediction.constant_prediction_software(k_assumed), log_file_path=log_file_path,
                                   preferred_model_order=preferred_model_order,
                                   opportunistic_cpu_exploitation_manual_point_limit=opportunistic_cpu_exploitation_manual_point_limit,
                                   use_opportunistic_cpu_exploitation=opportunistic,
-                                  use_orthogonal=orthogonal)
+                                  use_orthogonal=orthogonal,
+                                  use_reasoned_k_hat=use_reasoned_k_hat)
 
     alg.log_current()
 
@@ -274,7 +272,7 @@ def mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assum
 
 # # GPS and MBTR hyperparameters and cluster settings
 
-# In[ ]:
+# In[10]:
 
 
 dim_to_cluster_sizes = { # upper inclusive : [possible ranges]
@@ -336,8 +334,8 @@ def get_cluster_sizes(n):
 # In[12]:
 
 
+
 from tqdm import tqdm
-import math
 
 log_paths = [[] for _ in range(NUM_ALGS)]
 
@@ -376,7 +374,7 @@ def gps_all_combinations(path_idx, k_assumed_f, opportunistic):
             for k in ks:
                 log_paths[path_idx].append(gps_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), gps_delta, gps_tau, batch_limit_func(problem_n), opportunistic))
 
-                
+
                 pbar.update(1)
 
     pbar.close()
@@ -396,7 +394,7 @@ for k_assumed_f in k_assumed_functions.values():
 
 # MBTR
 
-# In[ ]:
+# In[16]:
 
 
 mbtr_combination_count = 0
@@ -408,7 +406,7 @@ for problem_idx in range(NUM_PROBLEMS):
         for k in ks:
             mbtr_combination_count += 1
 
-def mbtr_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogonal):
+def mbtr_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogonal, use_reasoned_k_hat):
     pbar = tqdm(total=mbtr_combination_count)
 
     for problem_idx in range(NUM_PROBLEMS):
@@ -421,36 +419,37 @@ def mbtr_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogona
 
             for k in ks:
                 if order == 1:
-                    log_paths[path_idx].append(mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_1_delta, mbtr_1_mu, mbtr_1_eta, mbtr_1_gamma, mbtr_1_eps_stop, 1, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal))
+                    log_paths[path_idx].append(mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_1_delta, mbtr_1_mu, mbtr_1_eta, mbtr_1_gamma, mbtr_1_eps_stop, 1, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal, use_reasoned_k_hat))
                 else:
-                    log_paths[path_idx].append(mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_2_delta, mbtr_2_mu, mbtr_2_eta, mbtr_2_gamma, mbtr_2_eps_stop, 2, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal))
+                    log_paths[path_idx].append(mbtr_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_2_delta, mbtr_2_mu, mbtr_2_eta, mbtr_2_gamma, mbtr_2_eps_stop, 2, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal, use_reasoned_k_hat))
 
-                
+
                 pbar.update(1)
 
     pbar.close()
 
 
-# In[17]:
+# In[ ]:
 
 
 for k_assumed_f in k_assumed_functions.values():
+    # all use small hat
     # MBTR - order 1 opportunistic orthogonal
-    mbtr_all_combinations(current_path_idx, k_assumed_f, 1, True, True)
+    mbtr_all_combinations(current_path_idx, k_assumed_f, 1, True, True, use_reasoned_k_hat=True)
     # MBTR - order 1 opportunistic pure random
-    mbtr_all_combinations(current_path_idx+1, k_assumed_f, 1, True, False)
+    mbtr_all_combinations(current_path_idx+1, k_assumed_f, 1, True, False, use_reasoned_k_hat=True)
     # MBTR - order 1 complete orthogonal
-    mbtr_all_combinations(current_path_idx+2, k_assumed_f, 1, False, True)
+    mbtr_all_combinations(current_path_idx+2, k_assumed_f, 1, False, True, use_reasoned_k_hat=True)
     # MBTR - order 1 complete pure random
-    mbtr_all_combinations(current_path_idx+3, k_assumed_f, 1, False, False)
+    mbtr_all_combinations(current_path_idx+3, k_assumed_f, 1, False, False, use_reasoned_k_hat=True)
     # MBTR - order 2 opportunistic orthogonal
-    mbtr_all_combinations(current_path_idx+4, k_assumed_f, 2, True, True)
+    mbtr_all_combinations(current_path_idx+4, k_assumed_f, 2, True, True, use_reasoned_k_hat=True)
     # MBTR - order 2 opportunistic pure random
-    mbtr_all_combinations(current_path_idx+5, k_assumed_f, 2, True, False)
+    mbtr_all_combinations(current_path_idx+5, k_assumed_f, 2, True, False, use_reasoned_k_hat=True)
     # MBTR - order 2 complete orthogonal
-    mbtr_all_combinations(current_path_idx+6, k_assumed_f, 2, False, True)
+    mbtr_all_combinations(current_path_idx+6, k_assumed_f, 2, False, True, use_reasoned_k_hat=True)
     # MBTR - order 2 complete pure random
-    mbtr_all_combinations(current_path_idx+7, k_assumed_f, 2, False, False)
+    mbtr_all_combinations(current_path_idx+7, k_assumed_f, 2, False, False, use_reasoned_k_hat=True)
 
     current_path_idx += 8
 
@@ -469,7 +468,7 @@ for problem_idx in range(NUM_PROBLEMS):
         for k in ks:
             hybrid_combination_count += 1
 
-def hybrid_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogonal):
+def hybrid_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogonal, use_reasoned_k_hat):
     pbar = tqdm(total=hybrid_combination_count)
 
     for problem_idx in range(NUM_PROBLEMS):
@@ -482,35 +481,37 @@ def hybrid_all_combinations(path_idx, k_assumed_f, order, opportunistic, orthogo
 
             for k in ks:
                 if order == 1:
-                    log_paths[path_idx].append(mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_1_delta, mbtr_1_mu, mbtr_1_eta, mbtr_1_gamma, mbtr_1_eps_stop, 1, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal))
+                    log_paths[path_idx].append(mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_1_delta, mbtr_1_mu, mbtr_1_eta, mbtr_1_gamma, mbtr_1_eps_stop, 1, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal, use_reasoned_k_hat))
                 else:
-                    log_paths[path_idx].append(mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_2_delta, mbtr_2_mu, mbtr_2_eta, mbtr_2_gamma, mbtr_2_eps_stop, 2, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal))
+                    log_paths[path_idx].append(mbtr_gps_hybrid_path_batch_constrained(problem_idx, cluster_size, k, k_assumed_f(cluster_size, k), mbtr_2_delta, mbtr_2_mu, mbtr_2_eta, mbtr_2_gamma, mbtr_2_eps_stop, 2, batch_limit_func(problem_n), mbtr_model_function_lim(problem_n), opportunistic, orthogonal, use_reasoned_k_hat))
 
-                
+
                 pbar.update(1)
 
     pbar.close()
 
 
-# In[19]:
+# In[ ]:
 
 
 for k_assumed_f in k_assumed_functions.values():
+    # all use small hat
     # Hybrid - order 1 opportunistic orthogonal
-    hybrid_all_combinations(current_path_idx, k_assumed_f, 1, True, True)
+    hybrid_all_combinations(current_path_idx, k_assumed_f, 1, True, True, use_reasoned_k_hat=True)
     # Hybrid - order 1 opportunistic pure random
-    hybrid_all_combinations(current_path_idx+1, k_assumed_f, 1, True, False)
+    hybrid_all_combinations(current_path_idx+1, k_assumed_f, 1, True, False, use_reasoned_k_hat=True)
     # Hybrid - order 1 complete orthogonal
-    hybrid_all_combinations(current_path_idx+2, k_assumed_f, 1, False, True)
+    hybrid_all_combinations(current_path_idx+2, k_assumed_f, 1, False, True, use_reasoned_k_hat=True)
     # Hybrid - order 1 complete pure random
-    hybrid_all_combinations(current_path_idx+3, k_assumed_f, 1, False, False)
+    hybrid_all_combinations(current_path_idx+3, k_assumed_f, 1, False, False, use_reasoned_k_hat=True)
     # Hybrid - order 2 opportunistic orthogonal
-    hybrid_all_combinations(current_path_idx+4, k_assumed_f, 2, True, True)
+    hybrid_all_combinations(current_path_idx+4, k_assumed_f, 2, True, True, use_reasoned_k_hat=True)
     # Hybrid - order 2 opportunistic pure random
-    hybrid_all_combinations(current_path_idx+5, k_assumed_f, 2, True, False)
+    hybrid_all_combinations(current_path_idx+5, k_assumed_f, 2, True, False, use_reasoned_k_hat=True)
     # Hybrid - order 2 complete orthogonal
-    hybrid_all_combinations(current_path_idx+6, k_assumed_f, 2, False, True)
+    hybrid_all_combinations(current_path_idx+6, k_assumed_f, 2, False, True, use_reasoned_k_hat=True)
     # Hybrid - order 2 complete pure random
-    hybrid_all_combinations(current_path_idx+7, k_assumed_f, 2, False, False)
+    hybrid_all_combinations(current_path_idx+7, k_assumed_f, 2, False, False, use_reasoned_k_hat=True)
 
     current_path_idx += 8
+

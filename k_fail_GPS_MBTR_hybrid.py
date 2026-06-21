@@ -1,11 +1,14 @@
 import models
 
 import torch
+import math
+import polytope_k_sPSS
+import k_fail_GPS
 
 # basically MBTR but before building a model check for decrease in sampled and if so update like gps
 
 class MBTR_GPS_hybrid_k_fail:
-    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12, use_orthogonal=True, use_reasoned_k_hat=True): # f_omega will not be used as no problems in the test set have contraints
+    def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12, set_type="purerand", use_reasoned_k_hat=True, gps_filler_orth=True): # f_omega will not be used as no problems in the test set have contraints
         self.bb_k_fail_wrapper = bb_k_fail_wrapper
         self.x = x
         self.cur_f_val = self.bb_k_fail_wrapper.p_reuse.evaluate(self.x) # using hashing (or not at step 0) get the current value of f
@@ -21,8 +24,9 @@ class MBTR_GPS_hybrid_k_fail:
 
         self.use_opportunistic_cpu_exploitation = use_opportunistic_cpu_exploitation
         self.opportunistic_cpu_exploitation_manual_point_limit = opportunistic_cpu_exploitation_manual_point_limit
-        self.use_orthogonal = use_orthogonal
+        self.set_type = set_type
         self.use_reasoned_k_hat = use_reasoned_k_hat
+        self.gps_filler_orth = gps_filler_orth
 
         self.log_file_path = log_file_path # path to .txt where info should be stored
         open(log_file_path, "w").close() # clear log file
@@ -43,6 +47,33 @@ class MBTR_GPS_hybrid_k_fail:
             _f.write(s + "\n")
     
     def step_default(self):
+        def get_gps_set(n, k, delta): # returns polytope + additional to get total size of num_points
+            P = k_fail_GPS.select_k_spss(k, n, delta)
+
+            # check if P != z*num_cpus
+            # additional: diff//2 random with len delta/2, rest random with len 2*delta
+            if P.shape[0] % num_cpus != 0: # the last batch is not fully utilised
+                difference = num_cpus - P.shape[0]%num_cpus
+                num_inner = difference//2
+                num_outer = difference - num_inner
+
+                # generate the additional vectors and concat
+                inner = models.get_random_unit_D(num_inner, n) * delta * 0.5
+                outer = models.get_random_unit_D(num_outer, n) * delta * 2
+
+                P = torch.cat([P, inner, outer])
+            
+            P = P[torch.randperm(P.shape[0])]
+
+            # rotate the matrix
+            if n > 1: # can't rotate in 1D
+                P = (k_fail_GPS.get_random_rotation_matrix(n) @ P.T).T
+            
+            # NOTE: IMPORTANT, P is relative! so need to make it absolute
+            P = self.x + P
+
+            return P
+
         num_cpus = self.bb_k_fail_wrapper.num_cpus
         
         message = ""
@@ -58,13 +89,22 @@ class MBTR_GPS_hybrid_k_fail:
         else:
             p_total = (self.n+1)*(self.n+2)//2 + k_fail_predicted - 1
         
+        # increase p_total such that p_total = z * num_cpus
+        p_total = math.ceil(p_total / num_cpus) * num_cpus
+        
         if not self.use_opportunistic_cpu_exploitation:
             # build the full model, n_1_batch called later as a separate batch NOTE: must also update normal batch count when updating n_1_batch!
 
             # 1.1 - build points to build the model
             # TODO: test for oversupply - though get model and sltn methods might take care of this already?
             # print("P:", p)
-            points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(p_total, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(p_total, self.n)) # NOTE: without x_k for now, will add later (so we don't loose it)
+            if self.set_type == "purerand":
+                points = self.x + self.delta*models.get_random_D_max_norm_1(p_total, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            elif self.set_type == "orth":
+                points = self.x + self.delta*models.get_orthogonal_Q_D_max_norm_q(p_total, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            elif self.set_type == "gps": # NOTE: points size will likely be < p_total, will be augmented later
+                points = get_gps_set(self.n, k_fail_predicted, self.delta) # NOT COMPLETE!
+            
 
             # 1.2 get function value at points
             f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(points)
@@ -98,6 +138,30 @@ class MBTR_GPS_hybrid_k_fail:
                 return 0
 
             # else continue with the MBTR stuff
+            if self.set_type == "gps" and points.shape[0] < p_total+1: # FILL IN REST
+                # NOTE: this will already be z*num_cpus due to how p_total was calculated, so no waste
+                if self.gps_filler_orth:
+                    _additional_points = self.x + self.delta*models.get_orthogonal_Q_D_max_norm_q(p_total+1 - points.shape[0], self.n)
+                    _additional_f_vals, _additional_completed, _additional_actual_batch_calls, _additional_actual_k = self.bb_k_fail_wrapper.batch_call(_additional_points)
+
+                    self.prediction_software.add_actual_k(-1)
+                    self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
+                    self.n_failed_function_calls += _additional_points.shape[0] - _additional_completed.shape[0]
+                    self.n_batch_calls += _additional_actual_batch_calls
+
+                    points = torch.cat((points, _additional_points[_additional_completed]))
+                    f_vals = torch.cat((f_vals, _additional_f_vals))
+                else:
+                    _additional_points = self.x + self.delta*models.get_random_D_max_norm_1(p_total+1 - points.shape[0], self.n)
+                    _additional_f_vals, _additional_completed, _additional_actual_batch_calls, _additional_actual_k = self.bb_k_fail_wrapper.batch_call(_additional_points)
+
+                    self.prediction_software.add_actual_k(-1)
+                    self.n_function_calls = self.bb_k_fail_wrapper.p_reuse.get_n_f_evals()
+                    self.n_failed_function_calls += _additional_points.shape[0] - _additional_completed.shape[0]
+                    self.n_batch_calls += _additional_actual_batch_calls
+
+                    points = torch.cat((points, _additional_points[_additional_completed]))
+                    f_vals = torch.cat((f_vals, _additional_f_vals))
             
             selected_order = 1
             if self.preferred_model_order == 2 and points.shape[0] > self.n + k_fail_predicted: # capable of a poor quad model (n+1 + k - linear, (n+1)(n+2)/2 + k - quad)
@@ -147,7 +211,15 @@ class MBTR_GPS_hybrid_k_fail:
             # not included
         
         else: # exploitation
-            additional_points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus, self.n)) # NOTE: without x_k for now, will add later (so we don't loose it)
+            # NOTE: for opportunistic gps will always result in more points than num_cpus, so it will be cut off
+            if self.set_type == "purerand":
+                additional_points = self.x + self.delta*models.get_random_D_max_norm_1(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            elif self.set_type == "orth":
+                additional_points = self.x + self.delta*models.get_orthogonal_Q_D_max_norm_q(num_cpus, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+            elif self.set_type == "gps": # NOTE: points size will likely be < p_total, will be augmented later
+                additional_points = get_gps_set(self.n, k_fail_predicted, self.delta)[:num_cpus] # CUT OFF 
+
+            # additional_points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus, self.n)) # NOTE: without x_k for now, will add later (so we don't loose it)
             additional_f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(additional_points)
             
             
@@ -222,7 +294,14 @@ class MBTR_GPS_hybrid_k_fail:
                 
                 num_x_hats = k_hat+1 if self.use_reasoned_k_hat else k_fail_predicted+1
 
-                additional_points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus - num_x_hats, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus - num_x_hats, self.n))
+                if self.set_type == "purerand":
+                    additional_points = self.x + self.delta*models.get_random_D_max_norm_1(num_cpus - num_x_hats, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+                elif self.set_type == "orth":
+                    additional_points = self.x + self.delta*models.get_orthogonal_Q_D_max_norm_q(num_cpus - num_x_hats, self.n) # NOTE: without x_k for now, will add later (so we don't loose it)
+                elif self.set_type == "gps": # NOTE: points size will likely be < p_total, will be augmented later
+                    additional_points = get_gps_set(self.n, k_fail_predicted, self.delta)[:(num_cpus - num_x_hats)] # CUT OFF
+
+                # additional_points = self.x + self.delta*(models.get_orthogonal_Q_D_max_norm_q(num_cpus - num_x_hats, self.n) if self.use_orthogonal else models.get_random_D_max_norm_1(num_cpus - num_x_hats, self.n))
                 additional_points = torch.cat([additional_points, torch.ones((num_x_hats, self.n)) * x_hat]) # idxs [num_cpus-(k+1), num_cpus-1] are x_hat points
                 
                 additional_f_vals, completed, actual_batch_calls, actual_k = self.bb_k_fail_wrapper.batch_call(additional_points)

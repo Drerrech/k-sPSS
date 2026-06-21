@@ -1,4 +1,5 @@
 import cvxpy as cp
+from scipy.linalg import svd as scipy_svd
 import numpy as np
 import torch
 from scipy.optimize import minimize, brentq
@@ -238,7 +239,13 @@ def get_lin_model_and_solution(points, func_values, delta):
     
     # D is [x1-x0, x2-x0 ... xp-x0]
     D_t = rel_points[1:] - rel_points[0]
-    D_t_pinv = torch.linalg.pinv(D_t)
+    try:
+        D_t_pinv = torch.linalg.pinv(D_t)
+    except torch.linalg.LinAlgError:
+        # gesdd fails on the orthogonal set's repeated singular values; gesvd is robust
+        U, S, Vh = scipy_svd(D_t.numpy(), full_matrices=False, lapack_driver='gesvd')
+        S_inv = np.where(S > 1e-12, 1.0 / S, 0.0)
+        D_t_pinv = torch.from_numpy((Vh.T * S_inv) @ U.T)
     
     # calculate grad and build linear model (already in torch)
     # print(D_t_pinv, delta_f)

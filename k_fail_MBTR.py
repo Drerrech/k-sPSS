@@ -1,6 +1,7 @@
 import models
 
 import torch
+import math
 
 class MBTR_k_fail:
     def __init__(self, x, bb_k_fail_wrapper, delta, mu, eta, gamma, eps_stop, prediction_software, log_file_path, preferred_model_order=2, use_opportunistic_cpu_exploitation=True, opportunistic_cpu_exploitation_manual_point_limit=1e12, use_orthogonal=True, use_reasoned_k_hat=True): # f_omega will not be used as no problems in the test set have contraints
@@ -55,6 +56,9 @@ class MBTR_k_fail:
             p_total = self.n + k_fail_predicted # linear model +k failed points
         else:
             p_total = (self.n+1)*(self.n+2)//2 + k_fail_predicted - 1
+        
+        # increase p_total such that p_total = z * num_cpus
+        p_total = math.ceil(p_total / num_cpus) * num_cpus
         
         if not self.use_opportunistic_cpu_exploitation:
             # build the full model, n_1_batch called later as a separate batch NOTE: must also update normal batch count when updating n_1_batch!
