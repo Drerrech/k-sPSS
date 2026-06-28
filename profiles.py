@@ -186,11 +186,14 @@ MARKERS = [
     ",",   # pixel
 ]
 
-def plot_performance_profile(profile_vals, tau, alg_names, alpha_vals: torch.tensor=torch.linspace(1, 8, 8)):
-    plt.figure(figsize=(8, 5))
+def plot_performance_profile(profile_vals, tau, alg_names, alpha_vals: torch.tensor=torch.linspace(1, 8, 8), min_y=0, max_y=1, legend_on_side=False, alpha=1.0):
+    if not legend_on_side:
+        plt.figure(figsize=(8, 5))
+    else:
+        plt.figure(figsize=(10, 5))
 
     for alg_idx, alg_name in enumerate(alg_names):
-        plt.plot(alpha_vals, profile_vals[alg_idx], label=alg_name, drawstyle="steps-post", linewidth=2.5, marker=MARKERS[alg_idx%len(MARKERS)], markersize=10)
+        plt.plot(alpha_vals, profile_vals[alg_idx], label=alg_name, drawstyle="steps-post", linewidth=2.5, marker=MARKERS[alg_idx%len(MARKERS)], markersize=10, alpha=alpha)
 
     
     plt.xlabel("α")
@@ -199,19 +202,26 @@ def plot_performance_profile(profile_vals, tau, alg_names, alpha_vals: torch.ten
     plt.title(f"Performance Profile (τ = {tau})")
 
     # y is a fraction so clamp to [0, 1]
-    plt.ylim(0, 1)
+    plt.ylim(min_y, max_y)
     plt.xlim(alpha_vals[0], alpha_vals[-1])
 
-    plt.legend()
+    if not legend_on_side:
+        plt.legend()
+    else:
+        plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), borderaxespad=0)
+    
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.show()
 
-def plot_data_profile(profile_vals, tau, alg_names, k_vals: torch.tensor=torch.linspace(1, 8, 8)):
-    plt.figure(figsize=(8, 5))
+def plot_data_profile(profile_vals, tau, alg_names, k_vals: torch.tensor=torch.linspace(1, 8, 8), min_y=0, max_y=1, legend_on_side=False, alpha=1.0):
+    if not legend_on_side:
+        plt.figure(figsize=(8, 5))
+    else:
+        plt.figure(figsize=(10, 5))
 
     for alg_idx, alg_name in enumerate(alg_names):
-        plt.plot(k_vals, profile_vals[alg_idx], label=alg_name, drawstyle="steps-post", linewidth=2.5, marker=MARKERS[alg_idx%len(MARKERS)], markersize=10)
+        plt.plot(k_vals, profile_vals[alg_idx], label=alg_name, drawstyle="steps-post", linewidth=2.5, marker=MARKERS[alg_idx%len(MARKERS)], markersize=10, alpha=alpha)
 
     
     plt.xlabel("groups of k(n+1) evaluations")
@@ -220,19 +230,26 @@ def plot_data_profile(profile_vals, tau, alg_names, k_vals: torch.tensor=torch.l
     plt.title(f"Data Profile (τ = {tau})")
 
     # y is a fraction so clamp to [0, 1]
-    plt.ylim(0, 1)
+    plt.ylim(min_y, max_y)
     plt.xlim(k_vals[0], k_vals[-1])
 
-    plt.legend()
+    if not legend_on_side:
+        plt.legend()
+    else:
+        plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), borderaxespad=0)
+    
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.show()
 
-def plot_accuracy_profile(profile_vals, alg_names, d_vals: torch.tensor=torch.linspace(1, 8, 8)):
-    plt.figure(figsize=(8, 5))
+def plot_accuracy_profile(profile_vals, alg_names, d_vals: torch.tensor=torch.linspace(1, 8, 8), min_y=0, max_y=1, legend_on_side=False, alpha=1.0):
+    if not legend_on_side:
+        plt.figure(figsize=(8, 5))
+    else:
+        plt.figure(figsize=(10, 5))
 
     for alg_idx, alg_name in enumerate(alg_names):
-        plt.plot(d_vals, profile_vals[alg_idx], label=alg_name, drawstyle="steps-post", linewidth=2.5, marker=MARKERS[alg_idx%len(MARKERS)], markersize=10)
+        plt.plot(d_vals, profile_vals[alg_idx], label=alg_name, drawstyle="steps-post", linewidth=2.5, marker=MARKERS[alg_idx%len(MARKERS)], markersize=10, alpha=alpha)
 
     
     plt.xlabel("Relative accuracy d")
@@ -241,10 +258,14 @@ def plot_accuracy_profile(profile_vals, alg_names, d_vals: torch.tensor=torch.li
     plt.title(f"Accuracy profile")
 
     # y is a fraction so clamp to [0, 1]
-    plt.ylim(0, 1)
+    plt.ylim(min_y, max_y)
     plt.xlim(d_vals[0], d_vals[-1])
 
-    plt.legend()
+    if not legend_on_side:
+        plt.legend()
+    else:
+        plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), borderaxespad=0)
+    
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.show()
