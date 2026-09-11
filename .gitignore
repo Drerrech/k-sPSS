@@ -1,3 +1,4 @@
 .DS_Store
 .venv
 pycutest_cache_holder
+.ipynb_checkpoints
